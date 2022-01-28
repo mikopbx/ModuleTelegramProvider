@@ -104,7 +104,7 @@ class PbxExtensionSetup extends PbxExtensionSetupBase
             return false;
         }
         // Получение пробной лицензии. Продукт "Bitrix24Integration".
-        $this->license->addtrial('31');
+        $this->license->addtrial('96');
 
         return true;
     }
