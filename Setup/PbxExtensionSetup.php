@@ -8,6 +8,7 @@
 
 namespace Modules\ModuleTelegramProvider\Setup;
 
+use MikoPBX\Common\Models\PbxSettings;
 use MikoPBX\Modules\Setup\PbxExtensionSetupBase;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 
@@ -88,6 +89,24 @@ class PbxExtensionSetup extends PbxExtensionSetupBase
     public function unInstallDB($keepSettings = false): bool
     {
         return parent::unInstallDB($keepSettings);
+    }
+
+    /**
+     * Выполняет активацию триалов, проверку лицензионного клчюча
+     *
+     * @return bool результат активации лицензии
+     */
+    public function activateLicense(): bool
+    {
+        $lic = PbxSettings::getValueByKey('PBXLicense');
+        if (empty($lic)) {
+            $this->messages[] = 'License key not found...';
+            return false;
+        }
+        // Получение пробной лицензии. Продукт "Bitrix24Integration".
+        $this->license->addtrial('31');
+
+        return true;
     }
 
 }
