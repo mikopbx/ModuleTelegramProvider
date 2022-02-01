@@ -300,7 +300,7 @@ class TelegramProviderConf extends ConfigClass
                 'same => n,Set(TG_ID=${PJSIP_HEADER(read,X-TG-ID)})'.PHP_EOL.
                 'same => n,Set(TG_USER=${PJSIP_HEADER(read,X-TG-Username)})'.PHP_EOL.
                 'same => n,ExecIf($["${TG_PHONE}x" != "x"]?Set(CALLERID(num)=${TG_PHONE}))'.PHP_EOL.
-                'same => n,ExecIf($["${TG_USER}x" != "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=TG${TG_USER}))'.PHP_EOL.
+                'same => n,ExecIf($["${TG_USER}x" != "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_USER}))'.PHP_EOL.
                 'same => n,ExecIf($["${TG_ID}x" != "x" && "${TG_USER}x" == "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_ID}))'.PHP_EOL;
     }
 }
