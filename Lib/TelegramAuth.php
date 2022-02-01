@@ -71,9 +71,8 @@ class TelegramAuth extends WorkerBase
             $res = false;
             $this->error = 'Unknown command received: '.$action;
         }
-
         if(self::TEXT_ENTER_PHONE === $action){
-            $enteredText = $this->login;
+            $enteredText = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $this->login);
         }else{
             $enteredText = $this->getInputData($action);
         }
@@ -106,7 +105,12 @@ class TelegramAuth extends WorkerBase
             do{
                 sleep(1);
                 $deltaTime  = time() - $startTime;
-                $result =  json_decode(file_get_contents("$this->workDir/".TelegramProviderConf::STATUS_FILE_NAME), true);
+                $result = json_decode(
+                    file_get_contents("$this->workDir/" . TelegramProviderConf::STATUS_FILE_NAME),
+                    true,
+                    512,
+                    JSON_THROW_ON_ERROR
+                );
                 if($result['output'] !== $action){
                     break;
                 }
@@ -173,8 +177,8 @@ class TelegramAuth extends WorkerBase
             exit(1);
         }
         $this->login = $params;
-        $numPhone   = preg_replace('/[^0-9]/', '', $params);
-        $title = 'gen_db_'.$numPhone;
+        $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
+        $title      = 'gen_db_'.$numPhone;
         $id = Processes::getPidOfProcess($title);
         if(!empty($id)){
             exit(2);
@@ -218,10 +222,6 @@ class TelegramAuth extends WorkerBase
         if(!$settings){
             return $filename;
         }
-//        $settings->setHydrateMode(
-//            Resultset::HYDRATE_OBJECTS
-//        );
-
         $this->moduleDir  = trim(shell_exec('realpath '.__DIR__."/.."));
         $this->workDir    = $this->moduleDir.'/db/'.$numPhone;
         Util::mwMkdir($this->workDir, true);

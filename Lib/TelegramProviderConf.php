@@ -17,6 +17,7 @@ use Phalcon\Mvc\Model\Resultset;
 
 class TelegramProviderConf extends ConfigClass
 {
+    public const RGX_DIGIT_ONLY     = '/\D/';
     public const STATUS_FILE_NAME   = 'status.txt';
     public const STATUS_DONE        = 'Done';
     public const STATUS_ERROR       = 'Error';
@@ -85,7 +86,7 @@ class TelegramProviderConf extends ConfigClass
         if(!$settings){
             return $res;
         }
-        $workDir    = $this->moduleDir.'/db/'.preg_replace('/[^0-9]/', '', $settings->phone_number);
+        $workDir    = $this->moduleDir.'/db/'.preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
         $statusFile = "$workDir/".TelegramProviderConf::STATUS_FILE_NAME;
         $query      =  json_decode(file_get_contents($statusFile), true);
         if($query['status']??'' === self::STATUS_WAIT_INPUT){
@@ -110,14 +111,11 @@ class TelegramProviderConf extends ConfigClass
         }
         /** @var ModuleTelegramProvider $settings */
         $settings = ModuleTelegramProvider::findFirst($id);
-//        $settings->setHydrateMode(
-//            Resultset::HYDRATE_OBJECTS
-//        );
         if(!$settings){
             $res->messages[] = 'Settings not found';
             return $res;
         }
-        $workDir    = $this->moduleDir.'/db/'.preg_replace('/[^0-9]/', '', $settings->phone_number);
+        $workDir    = $this->moduleDir.'/db/'.preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
         $statusFile = $workDir.'/'.self::STATUS_FILE_NAME;
         // Запускаем авторизацию.
         $pid = Processes::getPidOfProcess("tg2sip -$id-");
@@ -144,14 +142,11 @@ class TelegramProviderConf extends ConfigClass
         }
         /** @var ModuleTelegramProvider $settings */
         $settings = ModuleTelegramProvider::findFirst($id);
-//        $settings->setHydrateMode(
-//            Resultset::HYDRATE_OBJECTS
-//        );
         if(!$settings){
             $res->messages[] = 'Settings not found';
             return $res;
         }
-        $workDir    = $this->moduleDir.'/db/'.preg_replace('/[^0-9]/', '', $settings->phone_number);
+        $workDir    = $this->moduleDir.'/db/'.preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
         $statusFile = $workDir.'/'.self::STATUS_FILE_NAME;
 
         if(file_exists($statusFile)){
@@ -175,7 +170,7 @@ class TelegramProviderConf extends ConfigClass
             Resultset::HYDRATE_OBJECTS
         );
         foreach ($data as $settings) {
-            $phone  = preg_replace('/[^0-9]/', '', $settings->phone_number);
+            $phone  = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             $pid    = Processes::getPidOfProcess("tg2sip -$settings->id-");
             $res->data[$settings->id] = [
                 'status' => (empty($pid))?'FAIL':'OK',
@@ -197,7 +192,7 @@ class TelegramProviderConf extends ConfigClass
             Resultset::HYDRATE_OBJECTS
         );
         foreach ($data as $settings){
-            $numPhone   = preg_replace('/[^0-9]/', '', $settings->phone_number);
+            $numPhone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             $workDir    = $this->moduleDir.'/db/'.$numPhone;
             $pid = Processes::getPidOfProcess("tg2sip -$settings->id-");
             if(!empty($pid)){
