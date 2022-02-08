@@ -1,2 +1,4 @@
 /bin/gen_db
 /bin/tg2sip
+/vendor/
+/composer.lock

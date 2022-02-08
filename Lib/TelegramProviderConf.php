@@ -122,7 +122,7 @@ class TelegramProviderConf extends ConfigClass
         if(empty($pid)){
             file_put_contents($statusFile, json_encode(['status'=> self::STATUS_START_AUTH, 'output' => 'CONF']));
             $phpPath = Util::which('php');
-            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/TelegramAuthClient.php '$settings->phone_number'");
+            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/sip2tg-auth.php '$settings->phone_number'");
         }
         $res->success = true;
         return $res;
@@ -291,11 +291,13 @@ class TelegramProviderConf extends ConfigClass
      */
     public function generateIncomingRoutBeforeDial($rout_number): string
     {
-        return  'same => n,Set(TG_PHONE=${PJSIP_HEADER(read,X-TG-Phone)})'.PHP_EOL.
-                'same => n,Set(TG_ID=${PJSIP_HEADER(read,X-TG-ID)})'.PHP_EOL.
-                'same => n,Set(TG_USER=${PJSIP_HEADER(read,X-TG-Username)})'.PHP_EOL.
-                'same => n,ExecIf($["${TG_PHONE}x" != "x"]?Set(CALLERID(num)=${TG_PHONE}))'.PHP_EOL.
-                'same => n,ExecIf($["${TG_USER}x" != "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_USER}))'.PHP_EOL.
-                'same => n,ExecIf($["${TG_ID}x" != "x" && "${TG_USER}x" == "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_ID}))'.PHP_EOL;
+        return  "\t".
+                'same => n,Set(TG_PHONE=${PJSIP_HEADER(read,X-TG-Phone)})'.PHP_EOL."\t".
+                'same => n,Set(TG_ID=${PJSIP_HEADER(read,X-TG-ID)})'.PHP_EOL."\t".
+                'same => n,Set(TG_USER=${PJSIP_HEADER(read,X-TG-Username)})'.PHP_EOL."\t".
+                'same => n,ExecIf($["${TG_PHONE}x" != "x"]?Set(CALLERID(num)=${TG_PHONE}))'.PHP_EOL."\t".
+                'same => n,ExecIf($["${TG_USER}x" != "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_USER}))'.PHP_EOL."\t".
+                'same => n,ExecIf($["${TG_ID}x" != "x" && "${TG_USER}x" == "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_ID}))'.PHP_EOL."\t".
+                'same => n,AGI('.$this->moduleDir.'/agi-bin/saveSipHeadersInRedis.php)'.PHP_EOL;
     }
 }

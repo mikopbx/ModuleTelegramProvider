@@ -19,6 +19,8 @@
 
 namespace Modules\ModuleTelegramProvider\Lib;
 
+use danog\MadelineProto\Settings;
+use MikoPBX\Common\Providers\ConfigProvider;
 use MikoPBX\Core\System\Processes;
 use MikoPBX\Core\System\Util;
 use MikoPBX\Core\Workers\WorkerBase;
@@ -58,7 +60,6 @@ class TelegramAuth extends WorkerBase
     private string $workDir = '';
     private string $login   = '';
 
-
     /**
      * Получение данных вывода приложение и ожидание ввода значения пользователем.
      * @param $action
@@ -88,6 +89,54 @@ class TelegramAuth extends WorkerBase
             $res = false;
         }
         return $res;
+    }
+
+    /**
+     */
+    public function messengerLogin($params):void
+    {
+        if(empty($params)){
+            exit(1);
+        }
+        $this->workDir = '/root';
+        $this->login   = $params;
+        $config = $this->di->getShared(ConfigProvider::SERVICE_NAME);
+
+        $database = new \danog\MadelineProto\Settings\Database\Redis;
+        $database->setUri('127.0.0.1:'.$config->path('redis.port'));
+        $database->setDatabase(0);
+        $appInfo = new Settings\AppInfo();
+        $appInfo->setApiId('33911');
+        $appInfo->setApiHash('c7490048cde9481db186db8a69923632');
+        $auth = new Settings\Auth();
+        $auth->setDefaultTempAuthKeyExpiresIn(900000);
+
+        $settings = new Settings();
+        $settings->setDb($database);
+        $settings->setAppInfo($appInfo);
+        $settings->setAuth($auth);
+
+        $MadelineProto = new \danog\MadelineProto\API('session.madeline', $settings);
+        $MadelineProto->async(true);
+        if(file_exists('/root/session.madeline.safe.php')){
+            echo("auth not req");
+            $MadelineProto->logout();
+            unset($MadelineProto);
+            return;
+        }
+
+        $phone = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $this->login);
+        $MadelineProto->phoneLogin($phone);
+
+        $authorization = $MadelineProto->completePhoneLogin($this->getInputData('messengerGetPhoneCode'));
+        if ($authorization['_'] === 'account.password') {
+            $authorization = $MadelineProto->complete2falogin($this->getInputData('messengerGetPassword'));
+        }
+        if ($authorization['_'] === 'account.needSignup') {
+            $firstName = $this->getInputData('messengerGetFirstName');
+            $lastName = $this->getInputData('messengerGetLastName');
+            $authorization = $MadelineProto->completeSignup($firstName, $lastName);
+        }
     }
 
     /**
