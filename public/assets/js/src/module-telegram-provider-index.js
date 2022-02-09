@@ -135,45 +135,46 @@ const ModuleTelegramProvider = {
 				setTimeout(window[className].checkStatus, 5000, id);
 				return;
 			}
-			if(response.data.status === 'Done'){
-				console.log('status', response);
-			}else if(response.data.status === 'WaitInput' && response.data.data.trim() === ''){
-				$('#command-dialog form div.field label').text(response.data.output);
-				$('input[id=command]').val('');
-				let phone = $('#ModuleTelegramProvider-table tr[id='+id+'] input[colname="phone_number"]').val();
-				$('#command-dialog a.ui.ribbon.label').text(phone);
-
-				$('#command-dialog')
-					.modal({
-						closable  : false,
-						onDeny    : function(){
-							$.get( '/pbxcore/api/modules/'+className+'/cancel-auth?id='+id, function( responseCmd ) {
-								console.log('cancel-auth', responseCmd);
-							});
-						},
-						onApprove : function() {
-							let elCommand = $('#command');
-							let command = elCommand.val();
-							elCommand.val('');
-							$.get( '/pbxcore/api/modules/'+className+'/enter-command?id='+id+'&command='+command, function( responseCmd ) {
-								console.log('enter-command', responseCmd);
-								if(responseCmd.result === true){
-									setTimeout(window[className].checkStatus, 1000);
-								}
-							});
-						},
-					})
-					.modal('show')
-			}else if(response.data.status === 'Error'){
-				console.log(response.data);
-				$("#error-message").show();
-				$("#error-message .header").text(globalTranslate.module_telegram_providerError);
-				$("#error-message .body").text(response.data.output);
-			}else{
-				console.log('status', response);
-				setTimeout(window[className].checkStatus, 2000, id);
+			for (let key in response.data) {
+				let statusData = response.data[key];
+				if(statusData.status === 'Done'){
+					console.log('status '+ key+':', response);
+				}else if(statusData.status === 'WaitInput' && statusData.data.trim() === ''){
+					$('#command-dialog form div.field label').text(statusData.output);
+					$('input[id=command]').val('');
+					let phone = $('#ModuleTelegramProvider-table tr[id='+id+'] input[colname="phone_number"]').val();
+					$('#command-dialog a.ui.ribbon.label').text(phone);
+					$('#command-dialog')
+						.modal({
+							closable  : false,
+							onDeny    : function(){
+								$.get( '/pbxcore/api/modules/'+className+'/cancel-auth?id='+id, function( responseCmd ) {
+									console.log('cancel-auth', responseCmd);
+								});
+							},
+							onApprove : function() {
+								let elCommand = $('#command');
+								let command = elCommand.val();
+								elCommand.val('');
+								$.get( '/pbxcore/api/modules/'+className+'/enter-command?id='+id+'&command='+command, function( responseCmd ) {
+									console.log('enter-command', responseCmd);
+									if(responseCmd.result === true){
+										setTimeout(window[className].checkStatus, 1000);
+									}
+								});
+							},
+						})
+						.modal('show');
+				}else if(statusData.status === 'Error'){
+					console.log(statusData);
+					$("#error-message").show();
+					$("#error-message .header").text(globalTranslate.module_telegram_providerError);
+					$("#error-message .body").text(statusData.output);
+				}else{
+					console.log('status '+ key+':', response);
+					setTimeout(window[className].checkStatus, 2000, id);
+				}
 			}
-
 		});
 	},
 

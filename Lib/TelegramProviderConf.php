@@ -24,6 +24,8 @@ class TelegramProviderConf extends ConfigClass
     public const STATUS_WAIT_INPUT  = 'WaitInput';
     public const STATUS_START_AUTH  = 'StartAuth';
 
+    public const DTMF_PROCESS_TITLE = 'madeline-dtmf';
+
     /**
      * Receive information about mikopbx main database changes
      *
@@ -115,14 +117,34 @@ class TelegramProviderConf extends ConfigClass
             $res->messages[] = 'Settings not found';
             return $res;
         }
-        $workDir    = $this->moduleDir.'/db/'.preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
+        $phone      = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
+        $workDir    = $this->moduleDir.'/db/'.$phone;
         $statusFile = $workDir.'/'.self::STATUS_FILE_NAME;
         // Запускаем авторизацию.
+        $phpPath = Util::which('php');
         $pid = Processes::getPidOfProcess("tg2sip -$id-");
+
+        $statusData = json_encode(['status'=> self::STATUS_START_AUTH, 'output' => 'CONF']);
         if(empty($pid)){
-            file_put_contents($statusFile, json_encode(['status'=> self::STATUS_START_AUTH, 'output' => 'CONF']));
-            $phpPath = Util::which('php');
+            // Авторизация шлюза sip2tg.
+            file_put_contents($statusFile, $statusData);
             Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/sip2tg-auth.php '$settings->phone_number'");
+        }
+        $pid = Processes::getPidOfProcess('madeline-auth-bot');
+        if(empty($pid)){
+            $statusFile = $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH).'/'.self::STATUS_FILE_NAME;
+            Util::mwMkdir(dirname($statusFile));
+            file_put_contents($statusFile, $statusData);
+            // Авторизация для клиента телеграм.
+            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/madeline-auth.php 'bot'");
+        }
+        $pid = Processes::getPidOfProcess("madeline-auth-$phone-user");
+        if(empty($pid)){
+            $statusFile = $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE)).'/'.self::STATUS_FILE_NAME;
+            Util::mwMkdir(dirname($statusFile));
+            file_put_contents($statusFile, $statusData);
+            // Авторизация для бота телеграм.
+            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/madeline-auth.php 'user' '$phone'");
         }
         $res->success = true;
         return $res;
@@ -146,14 +168,19 @@ class TelegramProviderConf extends ConfigClass
             $res->messages[] = 'Settings not found';
             return $res;
         }
-        $workDir    = $this->moduleDir.'/db/'.preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
-        $statusFile = $workDir.'/'.self::STATUS_FILE_NAME;
-
-        if(file_exists($statusFile)){
-            $res->success = true;
-            $res->data = json_decode(file_get_contents($statusFile), true);
-        }else{
-            $res->messages[] = 'Status file not found';
+        $phone      = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
+        $statusPath = [
+            'gw' => $this->moduleDir.'/db/'.$phone.'/'.self::STATUS_FILE_NAME,
+            'user' => $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE)).'/'.self::STATUS_FILE_NAME,
+            'bot' => $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH).'/'.self::STATUS_FILE_NAME
+        ];
+        $res->success = true;
+        foreach ($statusPath as $key => $statusFile){
+            if(file_exists($statusFile)){
+                $res->data[$key] = json_decode(file_get_contents($statusFile), true);
+            }else{
+                $res->data[$key] = [];
+            }
         }
         return $res;
     }
@@ -169,16 +196,38 @@ class TelegramProviderConf extends ConfigClass
         $data->setHydrateMode(
             Resultset::HYDRATE_OBJECTS
         );
+        $title = self::getProcessTitle();
         foreach ($data as $settings) {
             $phone  = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             $pid    = Processes::getPidOfProcess("tg2sip -$settings->id-");
             $res->data[$settings->id] = [
                 'status' => (empty($pid))?'FAIL':'OK',
+                'status-messenger' => (strpos($title, "-$phone") === false)?'FAIL':'OK',
                 'phone'  => $phone,
             ];
         }
+        $res->data['bot'] = [
+            'status' => (strpos($title, "-bot") === false)?'FAIL':'OK',
+            'status-messenger' => 'OK',
+            'phone' => ''
+        ];
+
         $res->success = true;
         return $res;
+    }
+
+    /**
+     * Возвращает описание запущенного процесса.
+     * @return string
+     */
+    public static function getProcessTitle():string
+    {
+        $path_ps   = Util::which('ps');
+        $path_grep = Util::which('grep');
+        $path_awk  = Util::which('awk');
+
+        $out = shell_exec("$path_ps -A -o 'pid,args' | $path_grep ".self::DTMF_PROCESS_TITLE." | $path_grep -v grep | $path_awk ' {print $3} '");
+        return trim($out);
     }
 
     /**

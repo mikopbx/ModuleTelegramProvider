@@ -28,6 +28,11 @@ use Modules\ModuleTelegramProvider\Lib\TgUserEventHandler;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 
+$pid   = TelegramProviderConf::getProcessTitle();
+if(!empty($pid)){
+    exit(1);
+}
+
 $modDir        = TelegramProviderConf::getModDir();
 $MadelineProto = [];
 $handlers      = [];
@@ -39,6 +44,7 @@ $settings->setHydrateMode(
 );
 
 $botId = 0;
+$title = TelegramProviderConf::DTMF_PROCESS_TITLE;
 /** @var ModuleTelegramProvider $setting */
 foreach ($settings as $setting){
     if(!empty($setting->botId)){
@@ -49,6 +55,7 @@ foreach ($settings as $setting){
     if(!file_exists($sessionName)){
         continue;
     }
+    $title.="-$phone";
     $MadelineProto []= new API($sessionName, $apiSettings);
     $handlers      []= TgUserEventHandler::class;
 }
@@ -59,12 +66,14 @@ foreach ($settings as $setting){
 $sessionName     = $modDir."/".TelegramAuth::BOT_SESSION_PATH;
 if(!empty($botId) && file_exists($sessionName)){
     define('MADELINE_BOT_ID', $botId);
+    $title.="-bot";
     $MadelineProto []= new API($sessionName, $apiSettings);
     $handlers      []= BotEventHandler::class;
 }
 
 if(!empty($MadelineProto)){
     try {
+        cli_set_process_title($title);
         API::startAndLoopMulti($MadelineProto, $handlers);
     }catch (Throwable $e){
         Util::sysLogMsg('DTMF BOT', $e->getMessage());

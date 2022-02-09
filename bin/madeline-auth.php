@@ -21,7 +21,14 @@ require_once 'Globals.php';
 require_once __DIR__.'/../vendor/autoload.php';
 use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 
-$tg = new TelegramAuth();
-// $tg->messengerLogin('79066614140');
-$tg->messengerBotLogin();
-
+$type  = $argv[1]??'';
+$phone = $argv[2]??'';
+if($type === 'bot'){
+    cli_set_process_title('madeline-auth-bot');
+    $tg = new TelegramAuth();
+    $tg->messengerBotLogin();
+}elseif ($type === 'user' && !empty($phone)){
+    cli_set_process_title("madeline-auth-$phone-user");
+    $tg = new TelegramAuth();
+    $tg->messengerLogin($phone);
+}
