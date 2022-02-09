@@ -19,17 +19,23 @@
 
 namespace Modules\ModuleTelegramProvider\Lib;
 
+use danog\MadelineProto\Logger as MadelineProtoLogger;
 use danog\MadelineProto\Settings;
-use MikoPBX\Common\Providers\ConfigProvider;
 use MikoPBX\Core\System\Processes;
+use MikoPBX\Core\System\System;
 use MikoPBX\Core\System\Util;
 use MikoPBX\Core\Workers\WorkerBase;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
-use Phalcon\Mvc\Model\Resultset;
+use danog\MadelineProto\API;
 use Throwable;
+use JsonException;
 
 class TelegramAuth extends WorkerBase
 {
+    public const   AUTH_OBJECT_NAME       = 'auth.authorization';
+    public const   BOT_SESSION_PATH       = 'db/madeline/bot/bot.madeline';
+    public const   PHONE_SESSION_TEMPLATE = 'db/madeline/$phone/session.madeline';
+
     public const   TEXT_ENTER_PHONE = 'Enter phone number:';
     public const   TEXT_AUTH_OK     = 'Authorization OK';
 
@@ -92,51 +98,126 @@ class TelegramAuth extends WorkerBase
     }
 
     /**
+     * Авторизация клиента телеграм и бота телеграм.
+     * @param $params
+     * @return int
      */
-    public function messengerLogin($params):void
+    public function messengerLogin($params):int
     {
         if(empty($params)){
-            exit(1);
+            return 1;
         }
-        $this->workDir = '/root';
-        $this->login   = $params;
-        $config = $this->di->getShared(ConfigProvider::SERVICE_NAME);
-
-        $database = new \danog\MadelineProto\Settings\Database\Redis;
-        $database->setUri('127.0.0.1:'.$config->path('redis.port'));
-        $database->setDatabase(0);
-        $appInfo = new Settings\AppInfo();
-        $appInfo->setApiId('33911');
-        $appInfo->setApiHash('c7490048cde9481db186db8a69923632');
-        $auth = new Settings\Auth();
-        $auth->setDefaultTempAuthKeyExpiresIn(900000);
-
-        $settings = new Settings();
-        $settings->setDb($database);
-        $settings->setAppInfo($appInfo);
-        $settings->setAuth($auth);
-
-        $MadelineProto = new \danog\MadelineProto\API('session.madeline', $settings);
-        $MadelineProto->async(true);
-        if(file_exists('/root/session.madeline.safe.php')){
-            echo("auth not req");
-            $MadelineProto->logout();
-            unset($MadelineProto);
-            return;
+        $phone          = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
+        $sessionPath    = TelegramProviderConf::getModDir().'/'.str_replace( '$phone', $phone, self::PHONE_SESSION_TEMPLATE);
+        $madeLineDir    = dirname($sessionPath);
+        $this->workDir  = $madeLineDir;
+        Util::mwMkdir($madeLineDir, true);
+        if(!file_exists($madeLineDir)){
+            return 3;
         }
+        $pid = Processes::getPidOfProcess(basename($sessionPath));
+        if(!empty($pid)){
+            // Удаляем процессы сессии.
+            $killPath = Util::which('kill');
+            shell_exec("$killPath $pid");
+        }
+        // Чистим предудыщие сессии.
+        shell_exec(Util::which('rm')." -rf $madeLineDir/*");
 
-        $phone = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $this->login);
+        $settings       = self::messengerInitSettings();
+        $MadelineProto  = new API($sessionPath, $settings);
+        $MadelineProto->async(false);
+
         $MadelineProto->phoneLogin($phone);
-
         $authorization = $MadelineProto->completePhoneLogin($this->getInputData('messengerGetPhoneCode'));
         if ($authorization['_'] === 'account.password') {
             $authorization = $MadelineProto->complete2falogin($this->getInputData('messengerGetPassword'));
         }
         if ($authorization['_'] === 'account.needSignup') {
             $firstName = $this->getInputData('messengerGetFirstName');
-            $lastName = $this->getInputData('messengerGetLastName');
-            $authorization = $MadelineProto->completeSignup($firstName, $lastName);
+            $lastName  = $this->getInputData('messengerGetLastName');
+            $MadelineProto->completeSignup($firstName, $lastName);
         }
+        if($authorization['_'] === self::AUTH_OBJECT_NAME && isset($authorization['user']['phone'])){
+            $this->updateStatus(TelegramProviderConf::STATUS_DONE, '');
+        }else{
+            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $authorization);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Создание сессии бота.
+     * @return void
+     */
+    public function messengerBotLogin():void
+    {
+        $sessionPath   =  TelegramProviderConf::getModDir().'/'.self::BOT_SESSION_PATH;
+        $this->workDir = dirname($sessionPath);
+        Util::mwMkdir($this->workDir, true);
+        if(!file_exists($this->workDir)){
+            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, 'Failed to create a directory: bot work dir');
+            return;
+        }
+        $botToken    = $this->getInputData('messengerGetBotToken');
+        if(empty($botToken)){
+            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, 'Bot Token Input Timeout Exceeded');
+            return;
+        }
+        $settings       = self::messengerInitSettings();
+        $MadelineProto  = new API($sessionPath, $settings);
+        $MadelineProto->async(false);
+        $authorization = $MadelineProto->botLogin($botToken);
+        if($authorization === null){
+            $pid = Processes::getPidOfProcess(basename($sessionPath));
+            if(!empty($pid)){
+                $authorization = ['_' => self::AUTH_OBJECT_NAME];
+                $killPath = Util::which('kill');
+                shell_exec("$killPath $pid");
+            }
+        }
+        if($authorization['_'] === self::AUTH_OBJECT_NAME){
+            $this->updateStatus(TelegramProviderConf::STATUS_DONE, '');
+            // Сохраним ID бота.
+            $botId = explode(':',$botToken)[0]??'';
+            if(!empty($botId)){
+                /** @var ModuleTelegramProvider $setting */
+                $settings = ModuleTelegramProvider::find();
+                foreach ($settings as $setting){
+                    $setting->botId = $botId;
+                    $setting->save();
+                }
+            }
+        }else{
+            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $authorization);
+        }
+        unset($MadelineProto);
+    }
+
+    /**
+     * Возвращает объект настроек для API подключения месенджера telegram.
+     * @return Settings
+     */
+    public static function messengerInitSettings():Settings
+    {
+        $settings = new Settings();
+        /** @var ModuleTelegramProvider $settings */
+        $setting = ModuleTelegramProvider::findFirst();
+        if($setting){
+            $appInfo = new Settings\AppInfo();
+            $appInfo->setApiId($setting->api_id);
+            $appInfo->setApiHash($setting->api_hash);
+            $settings->setAppInfo($appInfo);
+
+            $logFile = System::getLogDir()."/".basename(TelegramProviderConf::getModDir()).'/madeline-messenger.log';
+            $logger = new Settings\Logger();
+            $logger->setType(MadelineProtoLogger::FILE_LOGGER);
+            $logger->setLevel(MadelineProtoLogger::LEVEL_ERROR);
+            $logger->setExtra($logFile);
+            $settings->setLogger($logger);
+        }
+        return $settings;
     }
 
     /**
@@ -213,8 +294,13 @@ class TelegramAuth extends WorkerBase
             ];
         }
         $statusFile = "$this->workDir/".TelegramProviderConf::STATUS_FILE_NAME;
-        file_put_contents($statusFile, json_encode($query));
+        try {
+            file_put_contents($statusFile, json_encode($query, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+        }catch (JsonException $e){
+            Util::sysLogMsg(__CLASS__, $e->getMessage());
+        }
     }
+
 
     /**
      * Запуск процесса авторизации.
@@ -258,6 +344,23 @@ class TelegramAuth extends WorkerBase
     }
 
     /**
+     * Создание рабочего каталога.
+     * @param $numPhone
+     * @return void
+     */
+    private function initWorkDir($numPhone):void
+    {
+        /** @var ModuleTelegramProvider $settings */
+        $settings = ModuleTelegramProvider::findFirst("phone_number='$this->login'");
+        if(!$settings){
+            return;
+        }
+        $this->moduleDir  = TelegramProviderConf::getModDir();
+        $this->workDir    = $this->moduleDir.'/db/'.$numPhone;
+        Util::mwMkdir($this->workDir, true);
+    }
+
+    /**
      * Создание конфиг файла.
      * @param $numPhone
      * @return string
@@ -267,16 +370,11 @@ class TelegramAuth extends WorkerBase
         $filename = '';
         $debugLvl = 6;
         /** @var ModuleTelegramProvider $settings */
-        $settings = ModuleTelegramProvider::findFirst("phone_number='$this->login'");
-        if(!$settings){
-            return $filename;
-        }
-        $this->moduleDir  = trim(shell_exec('realpath '.__DIR__."/.."));
-        $this->workDir    = $this->moduleDir.'/db/'.$numPhone;
-        Util::mwMkdir($this->workDir, true);
+        $this->initWorkDir($numPhone);
         if(!file_exists($this->workDir)){
             return $filename;
         }
+        $settings   = ModuleTelegramProvider::findFirst("phone_number='$this->login'");
         $filename   = $this->workDir.'/settings.ini';
         if(file_exists($filename)){
             $output = shell_exec("cd '$this->workDir'; /bin/busybox timeout 0.5 $this->moduleDir/bin/gen_db 2>&1");

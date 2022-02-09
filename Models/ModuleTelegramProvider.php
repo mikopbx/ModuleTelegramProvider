@@ -58,6 +58,12 @@ class ModuleTelegramProvider extends ModulesModelsBase
     public $disable = '0';
 
     /**
+     *
+     * @Column(type="integer", nullable=true)
+     */
+    public $botId = '0';
+
+    /**
      * Returns dynamic relations between module models and common models
      * MikoPBX check it in ModelsBase after every call to keep data consistent
      *

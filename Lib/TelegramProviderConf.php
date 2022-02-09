@@ -300,4 +300,15 @@ class TelegramProviderConf extends ConfigClass
                 'same => n,ExecIf($["${TG_ID}x" != "x" && "${TG_USER}x" == "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_ID}))'.PHP_EOL."\t".
                 'same => n,AGI('.$this->moduleDir.'/agi-bin/saveSipHeadersInRedis.php)'.PHP_EOL;
     }
+
+    /**
+     * Возвращает полный путь к каталогу модуля.
+     * @return string
+     */
+    public static function getModDir():string
+    {
+        $realpath = Util::which('realpath');
+        return trim(shell_exec("$realpath ".__DIR__."/.."));
+    }
+
 }

@@ -21,19 +21,52 @@ require_once 'Globals.php';
 require_once __DIR__.'/../vendor/autoload.php';
 use danog\MadelineProto\API;
 use MikoPBX\Core\System\Util;
+use Phalcon\Mvc\Model\Resultset;
 use Modules\ModuleTelegramProvider\Lib\BotEventHandler;
+use Modules\ModuleTelegramProvider\Lib\TelegramProviderConf;
 use Modules\ModuleTelegramProvider\Lib\TgUserEventHandler;
+use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
+use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 
-$MadelineProto=[];
-$MadelineProto []= new API('bot.madeline');
-$MadelineProto []= new API('session.madeline');
+$modDir        = TelegramProviderConf::getModDir();
+$MadelineProto = [];
+$handlers      = [];
+$apiSettings   = TelegramAuth::messengerInitSettings();
 
-$handlers    = [];
-$handlers      []= BotEventHandler::class;
-$handlers      []= TgUserEventHandler::class;
+$settings = ModuleTelegramProvider::find();
+$settings->setHydrateMode(
+    Resultset::HYDRATE_OBJECTS
+);
 
-try {
-    API::startAndLoopMulti($MadelineProto, $handlers);
-}catch (Throwable $e){
-    Util::sysLogMsg('DTMF BOT', $e->getMessage());
+$botId = 0;
+/** @var ModuleTelegramProvider $setting */
+foreach ($settings as $setting){
+    if(!empty($setting->botId)){
+        $botId = $setting->botId;
+    }
+    $phone       = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $setting->phone_number);
+    $sessionName =  TelegramProviderConf::getModDir().'/'.str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE);
+    if(!file_exists($sessionName)){
+        continue;
+    }
+    $MadelineProto []= new API($sessionName, $apiSettings);
+    $handlers      []= TgUserEventHandler::class;
+}
+
+/*
+ * Добавляем бота.
+ */
+$sessionName     = $modDir."/".TelegramAuth::BOT_SESSION_PATH;
+if(!empty($botId) && file_exists($sessionName)){
+    define('MADELINE_BOT_ID', $botId);
+    $MadelineProto []= new API($sessionName, $apiSettings);
+    $handlers      []= BotEventHandler::class;
+}
+
+if(!empty($MadelineProto)){
+    try {
+        API::startAndLoopMulti($MadelineProto, $handlers);
+    }catch (Throwable $e){
+        Util::sysLogMsg('DTMF BOT', $e->getMessage());
+    }
 }

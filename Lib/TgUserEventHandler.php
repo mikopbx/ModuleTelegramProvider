@@ -38,7 +38,9 @@ class TgUserEventHandler extends EventHandler
             return;
         }
         $chatId     = yield $this->getAPI()->getID($update);
-        yield $this->sendKeyboard($chatId, 1489312523, ''.time());
+        if(defined('MADELINE_BOT_ID')){
+            yield $this->sendKeyboard($chatId, MADELINE_BOT_ID, ''.time());
+        }
     }
 
     /**
