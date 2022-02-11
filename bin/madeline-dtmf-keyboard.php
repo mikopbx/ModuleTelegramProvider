@@ -28,21 +28,32 @@ use Modules\ModuleTelegramProvider\Lib\TgUserEventHandler;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 use danog\MadelineProto\Shutdown;
+use MikoPBX\Core\System\Processes;
 
-$pid   = TelegramProviderConf::getProcessTitle();
-if(!empty($pid)){
-    die('There is another active process... '.$pid.PHP_EOL);
-}
-
-$modDir        = TelegramProviderConf::getModDir();
-$MadelineProto = [];
-$handlers      = [];
-$apiSettings   = TelegramAuth::messengerInitSettings();
-
+$pid      = TelegramProviderConf::getProcessTitle();
 $settings = ModuleTelegramProvider::find();
 $settings->setHydrateMode(
     Resultset::HYDRATE_OBJECTS
 );
+if(!empty($pid)){
+    $needRestart = false;
+    foreach ($settings as $setting){
+        if(!empty($setting->botId)){
+            $needRestart = (strpos($pid, 'bot') === false|| $needRestart);
+        }
+        $phone  = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $setting->phone_number);
+        $needRestart = (strpos($pid, $phone) === false || $needRestart);
+    }
+    if($needRestart){
+        Processes::killByName($pid);
+    }else{
+        die('There is another active process... '.$pid.PHP_EOL);
+    }
+}
+$modDir        = TelegramProviderConf::getModDir();
+$MadelineProto = [];
+$handlers      = [];
+$apiSettings   = TelegramAuth::messengerInitSettings();
 
 $botId = 0;
 $title = TelegramProviderConf::DTMF_PROCESS_TITLE;

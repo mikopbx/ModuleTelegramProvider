@@ -27,7 +27,7 @@ class TelegramProviderConf extends ConfigClass
     public const STATUS_WAIT_RESPONSE  = 'WaitTgResponse';
     public const STATUS_START_AUTH  = 'StartAuth';
 
-    public const DTMF_PROCESS_TITLE = 'madeline-dtmf';
+    public const DTMF_PROCESS_TITLE = 'madeline-keyboard';
 
     /**
      * Receive information about mikopbx main database changes
@@ -235,8 +235,8 @@ class TelegramProviderConf extends ConfigClass
         $path_ps   = Util::which('ps');
         $path_grep = Util::which('grep');
         $path_awk  = Util::which('awk');
-
-        $out = shell_exec("$path_ps -A -o 'pid,args' | $path_grep ".self::DTMF_PROCESS_TITLE." | $path_grep -v grep | $path_awk ' {print $3} '");
+        $pid        = getmypid();
+        $out = shell_exec("$path_ps -A -o 'pid,args' | $path_grep ".self::DTMF_PROCESS_TITLE." | $path_grep -v grep | $path_grep -v '^$pid ' | $path_awk ' {print $3} '");
         return trim($out);
     }
 
@@ -324,11 +324,12 @@ class TelegramProviderConf extends ConfigClass
         if ( ! is_array($tasks)) {
             return;
         }
-        $workerPath   = $this->moduleDir.'/bin/';
+        $workerPath   = $this->moduleDir.'/bin';
         $phpPath      = Util::which('php');
+        $nohupPath    = Util::which('nohup');
 
-        $tasks[]      = "*/1 * * * * {$phpPath} -f '$workerPath/sip2tg-launcher.php' > /dev/null 2> /dev/null".PHP_EOL;
-        $tasks[]      = "*/1 * * * * {$phpPath} -f '$workerPath/madeline-dtmf-keyboard.php' > /dev/null 2> /dev/null".PHP_EOL;
+        $tasks[]      = "*/1 * * * * $nohupPath $phpPath -f '$workerPath/sip2tg-launcher.php' > /dev/null 2> /dev/null &".PHP_EOL;
+        $tasks[]      = "*/1 * * * * $nohupPath $phpPath -f '$workerPath/madeline-dtmf-keyboard.php' > /dev/null 2> /dev/null &".PHP_EOL;
     }
 
     /**
