@@ -83,13 +83,16 @@ const ModuleTelegramProvider = {
 				let uriButton 	= $('#ModuleTelegramProvider-table tr[id='+id+'] button.ui.button');
 				let loginButton = $('#ModuleTelegramProvider-table tr[id='+id+'] a[data-name="login-button"] i');
 				let elIcon = $('#ModuleTelegramProvider-table tr[id='+id+'] i.phone.icon');
-                if(response['data'][id]['status'] === 'OK'){
+
+				let failAuth = '';
+				if(response['data'][id]['gw'] === 'OK'){
                     elIcon.removeClass("red");
                     elIcon.addClass("green");
 					loginButton.removeClass('sign-in green');
 					loginButton.addClass('sync blue');
 					uriButton.show();
                 }else{
+					failAuth = failAuth + 'gw,'
 					uriButton.hide();
 					haveDisable = true;
                     elIcon.removeClass("gren");
@@ -97,6 +100,13 @@ const ModuleTelegramProvider = {
 					loginButton.removeClass('sync blue');
 					loginButton.addClass('sign-in green');
 				}
+				if(response['data'][id]['user'] !== 'OK'){
+					failAuth = failAuth + 'user,';
+				}
+				if(response['data'][id]['bot'] !== 'OK'){
+					failAuth = failAuth + 'bot';
+				}
+				$('#ModuleTelegramProvider-table #'+id).attr('data-fail-auth', failAuth);
             }
 			if(haveDisable === true){
 				window[className].changeStatus('NotAllConnected');
@@ -110,10 +120,11 @@ const ModuleTelegramProvider = {
 	/**
 	 * Запуск процесса авторизации.
 	 * @param id
+	 * @param failAuth
 	 */
-	startAuth(id) {
+	startAuth(id, failAuth) {
 		$("#error-message").hide();
-		$.get( '/pbxcore/api/modules/'+className+'/start-auth?id='+id, function( response ) {
+		$.get( '/pbxcore/api/modules/'+className+'/start-auth?id='+id+'&type='+failAuth, function( response ) {
 			if(response.result === false){
 				console.log(response);
 				$("#error-message").show();
@@ -135,6 +146,8 @@ const ModuleTelegramProvider = {
 				setTimeout(window[className].checkStatus, 5000, id);
 				return;
 			}
+
+			let needUpdateStatus = false;
 			for (let key in response.data) {
 				let statusData = response.data[key];
 				if(statusData.status === 'Done'){
@@ -144,6 +157,7 @@ const ModuleTelegramProvider = {
 					$('input[id=command]').val('');
 					let phone = $('#ModuleTelegramProvider-table tr[id='+id+'] input[colname="phone_number"]').val();
 					$('#command-dialog a.ui.ribbon.label').text(phone);
+					needUpdateStatus = false;
 					$('#command-dialog')
 						.modal({
 							closable  : false,
@@ -156,25 +170,29 @@ const ModuleTelegramProvider = {
 								let elCommand = $('#command');
 								let command = elCommand.val();
 								elCommand.val('');
-								$.get( '/pbxcore/api/modules/'+className+'/enter-command?id='+id+'&command='+command, function( responseCmd ) {
+								$.get( '/pbxcore/api/modules/'+className+'/enter-command?id='+id+'&command='+command+'&key='+key, function( responseCmd ) {
 									console.log('enter-command', responseCmd);
 									if(responseCmd.result === true){
-										setTimeout(window[className].checkStatus, 1000);
+										setTimeout(window[className].checkStatus, 1000, id);
 									}
 								});
 							},
 						})
 						.modal('show');
+						break;
 				}else if(statusData.status === 'Error'){
 					console.log(statusData);
 					$("#error-message").show();
 					$("#error-message .header").text(globalTranslate.module_telegram_providerError);
 					$("#error-message .body").text(statusData.output);
 				}else{
-					console.log('status '+ key+':', response);
-					setTimeout(window[className].checkStatus, 2000, id);
+					needUpdateStatus = true;
 				}
 			}
+			if(needUpdateStatus === true){
+				setTimeout(window[className].checkStatus, 2000, id);
+			}
+
 		});
 	},
 
@@ -319,7 +337,8 @@ const ModuleTelegramProvider = {
 		body.on('click', 'a[data-name="login-button"]', function (e) {
 			e.preventDefault();
 			let currentRowId = $(e.target).closest('tr').attr('id');
-			window[className].startAuth(currentRowId);
+			let failAuth = $(e.target).closest('tr').attr('data-fail-auth');
+			window[className].startAuth(currentRowId, failAuth);
 		});
 		body.on('click', 'button[data-name="uri-button"]', function (e) {
 			e.preventDefault();

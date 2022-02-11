@@ -21,5 +21,7 @@ namespace Modules\ModuleTelegramProvider\bin;
 use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 require_once 'Globals.php';
 
+//define('TG_DRY_RUN', 1);
+
 $tgClient = new TelegramAuth();
 $tgClient->start($argv[1]??'');

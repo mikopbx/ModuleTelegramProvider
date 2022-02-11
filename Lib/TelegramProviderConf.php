@@ -15,6 +15,8 @@ use MikoPBX\PBXCoreREST\Lib\PBXApiResult;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 use Phalcon\Mvc\Model\Resultset;
 
+use function GuzzleHttp\Psr7\str;
+
 class TelegramProviderConf extends ConfigClass
 {
     public const RGX_DIGIT_ONLY     = '/\D/';
@@ -22,6 +24,7 @@ class TelegramProviderConf extends ConfigClass
     public const STATUS_DONE        = 'Done';
     public const STATUS_ERROR       = 'Error';
     public const STATUS_WAIT_INPUT  = 'WaitInput';
+    public const STATUS_WAIT_RESPONSE  = 'WaitTgResponse';
     public const STATUS_START_AUTH  = 'StartAuth';
 
     public const DTMF_PROCESS_TITLE = 'madeline-dtmf';
@@ -63,9 +66,9 @@ class TelegramProviderConf extends ConfigClass
         }elseif($action === 'STATUSES'){
             $res = $this->getStatuses();
         }elseif($action === 'START-AUTH'){
-            $res = $this->startAuth($request['data']['id']??'');
+            $res = $this->startAuth($request['data']['id']??'', $request['data']['type']??'');
         }elseif($action === 'ENTER-COMMAND'){
-            $res = $this->enterCommand($request['data']['id']??'', $request['data']['command']??'');
+            $res = $this->enterCommand($request['data']['id']??'', $request['data']['command']??'', $request['data']['key']??'');
         }
         return $res;
     }
@@ -75,20 +78,27 @@ class TelegramProviderConf extends ConfigClass
      *
      * @param $id
      * @param $command
+     * @param $key
      * @return PBXApiResult
      */
-    public function enterCommand($id, $command):PBXApiResult
+    public function enterCommand($id, $command, $key):PBXApiResult
     {
         $res = new PBXApiResult();
         if(empty($id)){
             return $res;
         }
         $settings = ModuleTelegramProvider::findFirst($id);
-        // setHydrateMode
         if(!$settings){
             return $res;
         }
-        $workDir    = $this->moduleDir.'/db/'.preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
+        $phone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
+        if($key === 'bot'){
+            $workDir = $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH);
+        }elseif($key === 'user'){
+            $workDir = $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE));
+        }else{
+            $workDir = $this->moduleDir.'/db/'.$phone;
+        }
         $statusFile = "$workDir/".TelegramProviderConf::STATUS_FILE_NAME;
         $query      =  json_decode(file_get_contents($statusFile), true);
         if($query['status']??'' === self::STATUS_WAIT_INPUT){
@@ -102,9 +112,10 @@ class TelegramProviderConf extends ConfigClass
     /**
      * Запуск процесса авторизации.
      * @param $id
+     * @param $type
      * @return PBXApiResult
      */
-    private function startAuth($id):PBXApiResult
+    private function startAuth($id, $type):PBXApiResult
     {
         $res    = new PBXApiResult();
         if(empty($id)){
@@ -124,14 +135,16 @@ class TelegramProviderConf extends ConfigClass
         $phpPath = Util::which('php');
         $pid = Processes::getPidOfProcess("tg2sip -$id-");
 
+        $delay = 0;
         $statusData = json_encode(['status'=> self::STATUS_START_AUTH, 'output' => 'CONF']);
-        if(empty($pid)){
+        if(empty($pid) && strpos($type, 'gw' ) !== false){
             // Авторизация шлюза sip2tg.
+            $delay = 30;
             file_put_contents($statusFile, $statusData);
             Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/sip2tg-auth.php '$settings->phone_number'");
         }
         $pid = Processes::getPidOfProcess('madeline-auth-bot');
-        if(empty($pid)){
+        if(empty($pid) && strpos($type, 'bot' ) !== false){
             $statusFile = $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH).'/'.self::STATUS_FILE_NAME;
             Util::mwMkdir(dirname($statusFile));
             file_put_contents($statusFile, $statusData);
@@ -139,12 +152,12 @@ class TelegramProviderConf extends ConfigClass
             Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/madeline-auth.php 'bot'");
         }
         $pid = Processes::getPidOfProcess("madeline-auth-$phone-user");
-        if(empty($pid)){
+        if(empty($pid) && strpos($type, 'user' ) !== false){
             $statusFile = $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE)).'/'.self::STATUS_FILE_NAME;
             Util::mwMkdir(dirname($statusFile));
             file_put_contents($statusFile, $statusData);
             // Авторизация для бота телеграм.
-            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/madeline-auth.php 'user' '$phone'");
+            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/madeline-auth.php 'user' '$phone' $delay");
         }
         $res->success = true;
         return $res;
@@ -196,22 +209,19 @@ class TelegramProviderConf extends ConfigClass
         $data->setHydrateMode(
             Resultset::HYDRATE_OBJECTS
         );
+
         $title = self::getProcessTitle();
+        $statusBot = (strpos($title, "-bot") === false)?'FAIL':'OK';
         foreach ($data as $settings) {
             $phone  = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             $pid    = Processes::getPidOfProcess("tg2sip -$settings->id-");
             $res->data[$settings->id] = [
-                'status' => (empty($pid))?'FAIL':'OK',
-                'status-messenger' => (strpos($title, "-$phone") === false)?'FAIL':'OK',
+                'gw'     => (empty($pid))?'FAIL':'OK',
+                'user'   => (strpos($title, "-$phone") === false)?'FAIL':'OK',
+                'bot'    => $statusBot,
                 'phone'  => $phone,
             ];
         }
-        $res->data['bot'] = [
-            'status' => (strpos($title, "-bot") === false)?'FAIL':'OK',
-            'status-messenger' => 'OK',
-            'phone' => ''
-        ];
-
         $res->success = true;
         return $res;
     }

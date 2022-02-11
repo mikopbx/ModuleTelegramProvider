@@ -21,13 +21,19 @@ require_once 'Globals.php';
 require_once __DIR__.'/../vendor/autoload.php';
 use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 
+//define('TG_DRY_RUN', 1);
+
 $type  = $argv[1]??'';
 $phone = $argv[2]??'';
+$delay = $argv[3]??'';
 if($type === 'bot'){
     cli_set_process_title('madeline-auth-bot');
     $tg = new TelegramAuth();
     $tg->messengerBotLogin();
 }elseif ($type === 'user' && !empty($phone)){
+    if(is_numeric($delay)){
+        sleep(1*$delay);
+    }
     cli_set_process_title("madeline-auth-$phone-user");
     $tg = new TelegramAuth();
     $tg->messengerLogin($phone);

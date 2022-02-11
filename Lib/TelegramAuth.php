@@ -29,6 +29,7 @@ use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 use danog\MadelineProto\API;
 use Throwable;
 use JsonException;
+use danog\MadelineProto\Shutdown;
 
 class TelegramAuth extends WorkerBase
 {
@@ -99,21 +100,26 @@ class TelegramAuth extends WorkerBase
 
     /**
      * Авторизация клиента телеграм и бота телеграм.
-     * @param $params
-     * @return int
+     * @param      $params
+     * @return void
      */
-    public function messengerLogin($params):int
+    public function messengerLogin($params):void
     {
         if(empty($params)){
-            return 1;
+            return;
         }
         $phone          = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
         $sessionPath    = TelegramProviderConf::getModDir().'/'.str_replace( '$phone', $phone, self::PHONE_SESSION_TEMPLATE);
         $madeLineDir    = dirname($sessionPath);
         $this->workDir  = $madeLineDir;
+
+        if(defined('TG_DRY_RUN')){
+            $this->tgAuthTesting('messengerGetPhoneCode');
+            return;
+        }
         Util::mwMkdir($madeLineDir, true);
         if(!file_exists($madeLineDir)){
-            return 3;
+            return;
         }
         $pid = Processes::getPidOfProcess(basename($sessionPath));
         if(!empty($pid)){
@@ -126,6 +132,9 @@ class TelegramAuth extends WorkerBase
 
         $settings       = self::messengerInitSettings();
         $MadelineProto  = new API($sessionPath, $settings);
+        Shutdown::addCallback(static function () use ($MadelineProto) {
+            $MadelineProto->__destruct();
+        });
         $MadelineProto->async(false);
 
         $MadelineProto->phoneLogin($phone);
@@ -143,18 +152,21 @@ class TelegramAuth extends WorkerBase
         }else{
             $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $authorization);
         }
-
-        return 0;
+        $MadelineProto->__destruct();
     }
 
     /**
-     * Создание сессии бота.
+     Создание сессии бота.
      * @return void
      */
     public function messengerBotLogin():void
     {
         $sessionPath   =  TelegramProviderConf::getModDir().'/'.self::BOT_SESSION_PATH;
         $this->workDir = dirname($sessionPath);
+        if(defined('TG_DRY_RUN')){
+            $this->tgAuthTesting('messengerGetBotToken');
+            return;
+        }
         Util::mwMkdir($this->workDir, true);
         if(!file_exists($this->workDir)){
             $this->updateStatus(TelegramProviderConf::STATUS_ERROR, 'Failed to create a directory: bot work dir');
@@ -167,6 +179,9 @@ class TelegramAuth extends WorkerBase
         }
         $settings       = self::messengerInitSettings();
         $MadelineProto  = new API($sessionPath, $settings);
+        Shutdown::addCallback(static function () use ($MadelineProto) {
+            $MadelineProto->__destruct();
+        });
         $MadelineProto->async(false);
         $authorization = $MadelineProto->botLogin($botToken);
         if($authorization === null){
@@ -192,7 +207,19 @@ class TelegramAuth extends WorkerBase
         }else{
             $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $authorization);
         }
-        unset($MadelineProto);
+        $MadelineProto->__destruct();
+    }
+
+    /**
+     * Эмуляция запроса логина.
+     * @param $action
+     * @return void
+     */
+    private function tgAuthTesting($action):void
+    {
+        $this->getInputData($action);
+        sleep(4);
+        $this->updateStatus(TelegramProviderConf::STATUS_DONE, '');
     }
 
     /**
@@ -228,7 +255,6 @@ class TelegramAuth extends WorkerBase
     private function getInputData($action):string
     {
         $this->updateStatus(TelegramProviderConf::STATUS_WAIT_INPUT, $action);
-
         $enteredText = '';
         $startTime   = time();
         try {
@@ -249,6 +275,8 @@ class TelegramAuth extends WorkerBase
         }catch (Throwable $e){
             Util::sysLogMsg(self::class, $e->getMessage());
         }
+        $this->updateStatus(TelegramProviderConf::STATUS_WAIT_RESPONSE, '');
+
 
         return $enteredText;
     }
@@ -325,7 +353,10 @@ class TelegramAuth extends WorkerBase
             exit(3);
         }
         // Чистим старые настройки.
-        $this->updateStatus(TelegramProviderConf::STATUS_START_AUTH, '');
+        if(defined('TG_DRY_RUN')){
+            $this->tgAuthTesting('Enter authentication code:');
+            return;
+        }
         $descriptors = [
             self::STDIN_NUM  => ["pipe", "r"],
             self::STDOUT_NUM => ["pipe", "w"],

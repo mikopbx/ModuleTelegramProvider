@@ -27,6 +27,7 @@ use Modules\ModuleTelegramProvider\Lib\TelegramProviderConf;
 use Modules\ModuleTelegramProvider\Lib\TgUserEventHandler;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
+use danog\MadelineProto\Shutdown;
 
 $pid   = TelegramProviderConf::getProcessTitle();
 if(!empty($pid)){
@@ -70,6 +71,13 @@ if(!empty($botId) && file_exists($sessionName)){
     $MadelineProto []= new API($sessionName, $apiSettings);
     $handlers      []= BotEventHandler::class;
 }
+
+$id = Shutdown::addCallback(static function () use ($MadelineProto) {
+    /** @var API $Api */
+    foreach ($MadelineProto as $Api){
+        $Api->__destruct();
+    }
+}, 'TG-Shutdown');
 
 if(!empty($MadelineProto)){
     try {
