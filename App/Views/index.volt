@@ -23,9 +23,13 @@
         </div>
     </div>
     <br>
-    <table id="ModuleTelegramProvider-table" class="ui small very compact single line table"></table>
+    <table id="ModuleTelegramProvider-table" class="ui small very compact single line table"> </table>
     <br>
     {{ partial("partials/submitbutton",['indexurl':'pbx-extension-modules/index/']) }}
+
+    <div id="dimmer-wait-status" class="ui dimmer">
+        <div class="ui massive text loader"> {{ t._("module_telegram_providerWaitAuth") }} </div>
+    </div>
 </form>
 <div id="error-message" class="ui warning message" style="display: none;">
     <div class="header">

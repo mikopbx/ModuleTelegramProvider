@@ -34,4 +34,5 @@ return [
     'module_telegram_providerNotAllConnected'       => 'Не все линии подключены',
 
     'module_telegram_providerUpdateStatus'          => 'Обновление статуса',
+    'module_telegram_providerWaitAuth'              => 'Ожидание результата авторизации...',
 ];

@@ -147,6 +147,8 @@ const ModuleTelegramProvider = {
 		if(window[className].authProcess === ''){
 			return;
 		}
+		let elDimmer = $('#dimmer-wait-status');
+		elDimmer.addClass('active');
 		$.get( '/pbxcore/api/modules/'+className+'/status?id='+id, function( response ) {
 			if(response.result === false){
 				setTimeout(window[className].checkStatus, 5000, id);
@@ -155,6 +157,7 @@ const ModuleTelegramProvider = {
 			let statusData = response.data[window[className].authProcess];
 			if(statusData.status === 'Done'){
 				window[className].authProcess = '';
+				elDimmer.removeClass('active');
 			}else if(statusData.status === 'WaitInput' && statusData.data.trim() === ''){
 				$('#command-dialog form div.field label').text(statusData.output);
 				$('input[id=command]').val('');
@@ -165,6 +168,7 @@ const ModuleTelegramProvider = {
 						closable  : false,
 						onDeny    : function(){
 							$.get( '/pbxcore/api/modules/'+className+'/cancel-auth?id='+id);
+							elDimmer.removeClass('active');
 						},
 						onApprove : function() {
 							let elCommand = $('#command');
@@ -183,10 +187,10 @@ const ModuleTelegramProvider = {
 				$("#error-message").show();
 				$("#error-message .header").text(globalTranslate.module_telegram_providerError);
 				$("#error-message .body").text(statusData.output);
+				elDimmer.removeClass('active');
 			}else{
 				setTimeout(window[className].checkStatus, 2000, id);
 			}
-
 		});
 	},
 

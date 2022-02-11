@@ -23,6 +23,18 @@ use danog\MadelineProto\EventHandler;
 
 class BotEventHandler extends EventHandler
 {
+    private int $loopCount = 0;
+
+    public function onLoop():void{
+        $this->loopCount ++;
+        if($this->loopCount < 1000){
+            return;
+        }
+        $this->loopCount = 0;
+        // Без вызова этого метода вероятно перестанет получаеть обновления.
+        $this->getDialogs();
+    }
+
     /**
      * Handle updates from users.
      *
