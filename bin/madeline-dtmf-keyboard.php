@@ -31,7 +31,7 @@ use danog\MadelineProto\Shutdown;
 
 $pid   = TelegramProviderConf::getProcessTitle();
 if(!empty($pid)){
-    exit(1);
+    die('There is another active process... '.$pid.PHP_EOL);
 }
 
 $modDir        = TelegramProviderConf::getModDir();
@@ -77,7 +77,7 @@ $id = Shutdown::addCallback(static function () use ($MadelineProto) {
     foreach ($MadelineProto as $Api){
         $Api->__destruct();
     }
-}, 'TG-Shutdown');
+});
 
 if(!empty($MadelineProto)){
     try {

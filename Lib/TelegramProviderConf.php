@@ -315,9 +315,11 @@ class TelegramProviderConf extends ConfigClass
         if ( ! is_array($tasks)) {
             return;
         }
-        $workerPath = $this->moduleDir.'/bin/sip2tg-launcher.php';
-        $phpPath        = Util::which('php');
-        $tasks[]      = "*/1 * * * * {$phpPath} -f '$workerPath' > /dev/null 2> /dev/null".PHP_EOL;
+        $workerPath   = $this->moduleDir.'/bin/';
+        $phpPath      = Util::which('php');
+
+        $tasks[]      = "*/1 * * * * {$phpPath} -f '$workerPath/sip2tg-launcher.php' > /dev/null 2> /dev/null".PHP_EOL;
+        $tasks[]      = "*/1 * * * * {$phpPath} -f '$workerPath/madeline-dtmf-keyboard.php' > /dev/null 2> /dev/null".PHP_EOL;
     }
 
     /**
