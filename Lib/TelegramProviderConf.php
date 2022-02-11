@@ -15,8 +15,6 @@ use MikoPBX\PBXCoreREST\Lib\PBXApiResult;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 use Phalcon\Mvc\Model\Resultset;
 
-use function GuzzleHttp\Psr7\str;
-
 class TelegramProviderConf extends ConfigClass
 {
     public const RGX_DIGIT_ONLY     = '/\D/';
@@ -26,6 +24,10 @@ class TelegramProviderConf extends ConfigClass
     public const STATUS_WAIT_INPUT  = 'WaitInput';
     public const STATUS_WAIT_RESPONSE  = 'WaitTgResponse';
     public const STATUS_START_AUTH  = 'StartAuth';
+
+    public const LINE_STATUS_OK     = 'OK';
+    public const LINE_STATUS_FAIL   = 'FAIL';
+    public const LINE_STATUS_WAIT   = 'WAIT_START';
 
     public const DTMF_PROCESS_TITLE = 'madeline-keyboard';
 
@@ -145,7 +147,10 @@ class TelegramProviderConf extends ConfigClass
         }
         $pid = Processes::getPidOfProcess('madeline-auth-bot');
         if(empty($pid) && strpos($type, 'bot' ) !== false){
-            $statusFile = $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH).'/'.self::STATUS_FILE_NAME;
+            $this->stopMadeLine();
+            $sessionDir = $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH);
+            $statusFile = $sessionDir.'/'.self::STATUS_FILE_NAME;
+            shell_exec("rm -rf $sessionDir/*");
             Util::mwMkdir(dirname($statusFile));
             file_put_contents($statusFile, $statusData);
             // Авторизация для клиента телеграм.
@@ -153,7 +158,10 @@ class TelegramProviderConf extends ConfigClass
         }
         $pid = Processes::getPidOfProcess("madeline-auth-$phone-user");
         if(empty($pid) && strpos($type, 'user' ) !== false){
-            $statusFile = $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE)).'/'.self::STATUS_FILE_NAME;
+            $this->stopMadeLine();
+            $sessionDir = $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE));
+            $statusFile = $sessionDir.'/'.self::STATUS_FILE_NAME;
+            shell_exec("rm -rf $sessionDir");
             Util::mwMkdir(dirname($statusFile));
             file_put_contents($statusFile, $statusData);
             // Авторизация для бота телеграм.
@@ -211,16 +219,22 @@ class TelegramProviderConf extends ConfigClass
         );
 
         $title = self::getProcessTitle();
-        $statusBot = (strpos($title, "-bot") === false)?'FAIL':'OK';
+        $statusBot = (strpos($title, "-bot") === false)?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK;
         foreach ($data as $settings) {
             $phone  = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             $pid    = Processes::getPidOfProcess("tg2sip -$settings->id-");
-            $res->data[$settings->id] = [
-                'gw'     => (empty($pid))?'FAIL':'OK',
-                'user'   => (strpos($title, "-$phone") === false)?'FAIL':'OK',
+            $statusAuth = $this->getStatus($settings->id);
+            $statuses   = [
+                'gw'     => (empty($pid))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
+                'user'   => (strpos($title, "-$phone") === false)?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
                 'bot'    => $statusBot,
-                'phone'  => $phone,
             ];
+            foreach ($statusAuth->data as $key => $stateData){
+                if($stateData['status'] !== self::STATUS_DONE){
+                    $statuses[$key] = self::LINE_STATUS_FAIL;
+                }
+            }
+            $res->data[$settings->id] = $statuses;
         }
         $res->success = true;
         return $res;

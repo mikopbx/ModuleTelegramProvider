@@ -30,6 +30,10 @@ use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 use danog\MadelineProto\Shutdown;
 use MikoPBX\Core\System\Processes;
 
+$authPid = Processes::getPidOfProcess('madeline-auth-');
+if(!empty($authPid)){
+    die('The authorization process has been started. The start of the service is not possible.');
+}
 $pid      = TelegramProviderConf::getProcessTitle();
 $settings = ModuleTelegramProvider::find();
 $settings->setHydrateMode(

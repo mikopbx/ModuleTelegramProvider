@@ -20,6 +20,7 @@ const ModuleTelegramProvider = {
 	$disabilityFields: $('#'+idForm+'  .disability'),
 	$statusToggle: $('#module-status-toggle'),
 	$moduleStatus: $('#status'),
+	authProcess: '',
 	/**
 	 * Field validation rules
 	 * https://semantic-ui.com/behaviors/form.html
@@ -74,39 +75,41 @@ const ModuleTelegramProvider = {
 			}
 		});
 		window[className].checkStatusToggle();
-
 	},
     checkStatuses(){
         $.get( '/pbxcore/api/modules/'+className+'/statuses', function( response ) {
 			let haveDisable = false;
 			for (let id in response.data) {
-				let uriButton 	= $('#ModuleTelegramProvider-table tr[id='+id+'] button.ui.button');
-				let loginButton = $('#ModuleTelegramProvider-table tr[id='+id+'] a[data-name="login-button"] i');
-				let elIcon = $('#ModuleTelegramProvider-table tr[id='+id+'] i.phone.icon');
-
-				let failAuth = '';
-				if(response['data'][id]['gw'] === 'OK'){
-                    elIcon.removeClass("red");
-                    elIcon.addClass("green");
-					loginButton.removeClass('sign-in green');
-					loginButton.addClass('sync blue');
-					uriButton.show();
-                }else{
-					failAuth = failAuth + 'gw,'
-					uriButton.hide();
-					haveDisable = true;
-                    elIcon.removeClass("gren");
-                    elIcon.addClass("red");
-					loginButton.removeClass('sync blue');
-					loginButton.addClass('sign-in green');
+				let uriButton 		= $('#'+className+'-table tr[id='+id+'] button.ui.button');
+				let elements = {
+					'gw': $('#'+className+'-table tr[id='+id+'] a[data-name="login-gw"] i'),
+					'user': $('#'+className+'-table tr[id='+id+'] a[data-name="login-user"] i'),
+					'bot': $('#'+className+'-table tr[id='+id+'] a[data-name="login-bot"] i')
+				};
+				for (let keyElement in elements) {
+					let elButton = elements[keyElement];
+					if(response['data'][id][keyElement] === 'OK') {
+						elButton.removeClass('red orange');
+						elButton.addClass('green');
+						if (keyElement === 'gw') {
+							uriButton.show();
+						}
+					}else if(response['data'][id][keyElement] === 'WAIT_START'){
+						elButton.removeClass('green red');
+						elButton.addClass('orange');
+						if(keyElement==='gw'){
+							haveDisable = true;
+							uriButton.hide();
+						}
+					}else{
+						elButton.removeClass('green orange');
+						elButton.addClass('red');
+						if(keyElement==='gw'){
+							haveDisable = true;
+							uriButton.hide();
+						}
+					}
 				}
-				if(response['data'][id]['user'] !== 'OK'){
-					failAuth = failAuth + 'user,';
-				}
-				if(response['data'][id]['bot'] !== 'OK'){
-					failAuth = failAuth + 'bot';
-				}
-				$('#ModuleTelegramProvider-table #'+id).attr('data-fail-auth', failAuth);
             }
 			if(haveDisable === true){
 				window[className].changeStatus('NotAllConnected');
@@ -124,7 +127,7 @@ const ModuleTelegramProvider = {
 	 */
 	startAuth(id, failAuth) {
 		$("#error-message").hide();
-		$.get( '/pbxcore/api/modules/'+className+'/start-auth?id='+id+'&type='+failAuth, function( response ) {
+		$.get( '/pbxcore/api/modules/'+className+'/start-auth?id='+id+'&type='+window[className].authProcess, function( response ) {
 			if(response.result === false){
 				console.log(response);
 				$("#error-message").show();
@@ -141,55 +144,46 @@ const ModuleTelegramProvider = {
 	 * @param id
 	 */
 	checkStatus(id) {
+		if(window[className].authProcess === ''){
+			return;
+		}
 		$.get( '/pbxcore/api/modules/'+className+'/status?id='+id, function( response ) {
 			if(response.result === false){
 				setTimeout(window[className].checkStatus, 5000, id);
 				return;
 			}
-
-			let needUpdateStatus = false;
-			for (let key in response.data) {
-				let statusData = response.data[key];
-				if(statusData.status === 'Done'){
-					console.log('status '+ key+':', response);
-				}else if(statusData.status === 'WaitInput' && statusData.data.trim() === ''){
-					$('#command-dialog form div.field label').text(statusData.output);
-					$('input[id=command]').val('');
-					let phone = $('#ModuleTelegramProvider-table tr[id='+id+'] input[colname="phone_number"]').val();
-					$('#command-dialog a.ui.ribbon.label').text(phone);
-					needUpdateStatus = false;
-					$('#command-dialog')
-						.modal({
-							closable  : false,
-							onDeny    : function(){
-								$.get( '/pbxcore/api/modules/'+className+'/cancel-auth?id='+id, function( responseCmd ) {
-									console.log('cancel-auth', responseCmd);
-								});
-							},
-							onApprove : function() {
-								let elCommand = $('#command');
-								let command = elCommand.val();
-								elCommand.val('');
-								$.get( '/pbxcore/api/modules/'+className+'/enter-command?id='+id+'&command='+command+'&key='+key, function( responseCmd ) {
-									console.log('enter-command', responseCmd);
-									if(responseCmd.result === true){
-										setTimeout(window[className].checkStatus, 1000, id);
-									}
-								});
-							},
-						})
-						.modal('show');
-						break;
-				}else if(statusData.status === 'Error'){
-					console.log(statusData);
-					$("#error-message").show();
-					$("#error-message .header").text(globalTranslate.module_telegram_providerError);
-					$("#error-message .body").text(statusData.output);
-				}else{
-					needUpdateStatus = true;
-				}
-			}
-			if(needUpdateStatus === true){
+			let statusData = response.data[window[className].authProcess];
+			if(statusData.status === 'Done'){
+				window[className].authProcess = '';
+			}else if(statusData.status === 'WaitInput' && statusData.data.trim() === ''){
+				$('#command-dialog form div.field label').text(statusData.output);
+				$('input[id=command]').val('');
+				let phone = $('#ModuleTelegramProvider-table tr[id='+id+'] input[colname="phone_number"]').val();
+				$('#command-dialog a.ui.ribbon.label').text(phone);
+				$('#command-dialog')
+					.modal({
+						closable  : false,
+						onDeny    : function(){
+							$.get( '/pbxcore/api/modules/'+className+'/cancel-auth?id='+id);
+						},
+						onApprove : function() {
+							let elCommand = $('#command');
+							let command = elCommand.val();
+							elCommand.val('');
+							$.get( '/pbxcore/api/modules/'+className+'/enter-command?id='+id+'&command='+command+'&key='+window[className].authProcess, function( responseCmd ) {
+								if(responseCmd.result === true){
+									setTimeout(window[className].checkStatus, 1000, id);
+								}
+							});
+						},
+					})
+					.modal('show');
+			}else if(statusData.status === 'Error'){
+				window[className].authProcess = '';
+				$("#error-message").show();
+				$("#error-message .header").text(globalTranslate.module_telegram_providerError);
+				$("#error-message .body").text(statusData.output);
+			}else{
 				setTimeout(window[className].checkStatus, 2000, id);
 			}
 
@@ -274,7 +268,9 @@ const ModuleTelegramProvider = {
 						let uri = '127.0.0.1:'+(30000+1*data.DT_RowId);
 						let templateDeleteButton = '<div class="ui small basic icon buttons action-buttons">' +
 							'<button data-name="uri-button" class="ui button clipboard disability" data-tooltip="'+globalTranslate.module_telegram_providerCopy+'"  data-position="left center" data-clipboard-text="'+uri+'" style="display: none;">sip:'+uri+'</button>'+
-							'<a data-name="login-button"  href="" class="ui button popuped"><i class="icon sign-in"></i></a>'+
+							'<a data-name="login-gw"  href="" class="ui button popuped"><i class="icon telegram"></i></a>'+
+							'<a data-name="login-user"  href="" class="ui button popuped"><i class="icon envelope"></i></a>'+
+							'<a data-name="login-bot"  href="" class="ui button popuped"><i class="icon android secret"></i></a>'+
 							'<a data-name="delete-button" href="' + window[className].deleteRecordAJAXUrl + '/' +
 							data.DT_RowId + '" data-value = "' + data.DT_RowId + '"' +
 							' class="ui button delete two-steps-delete popuped" data-content="' + globalTranslate.bt_ToolTipDelete + '">' +
@@ -334,11 +330,23 @@ const ModuleTelegramProvider = {
 			}
 		});
 
-		body.on('click', 'a[data-name="login-button"]', function (e) {
+		body.on('click', 'a[data-name="login-gw"]', function (e) {
 			e.preventDefault();
+			window[className].authProcess = 'gw';
 			let currentRowId = $(e.target).closest('tr').attr('id');
-			let failAuth = $(e.target).closest('tr').attr('data-fail-auth');
-			window[className].startAuth(currentRowId, failAuth);
+			window[className].startAuth(currentRowId);
+		});		
+		body.on('click', 'a[data-name="login-user"]', function (e) {
+			e.preventDefault();
+			window[className].authProcess = 'user';
+			let currentRowId = $(e.target).closest('tr').attr('id');
+			window[className].startAuth(currentRowId);
+		});
+		body.on('click', 'a[data-name="login-bot"]', function (e) {
+			e.preventDefault();
+			window[className].authProcess = 'bot';
+			let currentRowId = $(e.target).closest('tr').attr('id');
+			window[className].startAuth(currentRowId);
 		});
 		body.on('click', 'button[data-name="uri-button"]', function (e) {
 			e.preventDefault();
