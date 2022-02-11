@@ -269,11 +269,12 @@ class TelegramProviderConf extends ConfigClass
      * @param $id
      * @return void
      */
-    public function startLauncher($id = ''):void
+    public function startLauncher($id):void
     {
-        $workerPath = $this->moduleDir.'/bin/sip2tg-launcher.php';
+        $workerPath = $this->moduleDir.'/bin/';
         $phpPath    = Util::which('php');
-        Processes::mwExecBg("$phpPath -f $workerPath restart {$id}");
+        Processes::mwExecBg("$phpPath -f $workerPath/sip2tg-launcher.php restart '$id'");
+        Processes::mwExecBg("$phpPath -f $workerPath/madeline-dtmf-keyboard.php '$id'");
     }
 
     /**
@@ -305,6 +306,14 @@ class TelegramProviderConf extends ConfigClass
         }
     }
 
+    public function stopMadeLine():void
+    {
+        $pid   = self::getProcessTitle();
+        if(!empty($pid)){
+            Processes::killByName($pid);
+        }
+    }
+
     /**
      * Добавление задач в crond.
      *
@@ -330,6 +339,7 @@ class TelegramProviderConf extends ConfigClass
     public function onAfterModuleDisable(): void
     {
         $this->stopSipTg();
+        $this->stopMadeLine();
     }
 
     /**
