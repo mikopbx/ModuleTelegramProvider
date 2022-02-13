@@ -35,4 +35,16 @@ return [
 
     'module_telegram_providerUpdateStatus'          => 'Обновление статуса',
     'module_telegram_providerWaitAuth'              => 'Ожидание результата авторизации...',
+
+    'module_telegram_provider_status_gw_OK'         => 'Шлюз Telegram <-> SIP: Подключен. Нажмите, для повторной авторизации',
+    'module_telegram_provider_status_gw_WAIT_START'       => 'Шлюз Telegram <-> SIP: Запускается. Нажмите, для повторной авторизации',
+    'module_telegram_provider_status_gw_FAIL'       => 'Шлюз Telegram <-> SIP: Не авторизован',
+
+    'module_telegram_provider_status_user_OK'       => 'Telegram клиент: Подключен. Нажмите, для повторной авторизации',
+    'module_telegram_provider_status_user_WAIT_START'     => 'Telegram клиент: Запускается. Нажмите, для повторной авторизации',
+    'module_telegram_provider_status_user_FAIL'     => 'Telegram клиент: Не авторизован',
+
+    'module_telegram_provider_status_bot_OK'        => 'Telegram бот: Подключен. Нажмите, для повторной авторизации',
+    'module_telegram_provider_status_bot_WAIT_START'      => 'Telegram бот: Запускается. Нажмите, для повторной авторизации',
+    'module_telegram_provider_status_bot_FAIL'      => 'Telegram бот: Не авторизован',
 ];

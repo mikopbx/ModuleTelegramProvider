@@ -30,10 +30,19 @@ use Modules\ModuleTelegramProvider\Lib\TelegramAuth;
 use danog\MadelineProto\Shutdown;
 use MikoPBX\Core\System\Processes;
 
-$authPid = Processes::getPidOfProcess('madeline-auth-');
+$fileState   = TelegramProviderConf::getModDir().'/db/madeline/user-last-ping-state.txt';
+$res         = stat($fileState);
+$mtime       = ($res === false)?0:$res['mtime'];
+
+$authPid     = Processes::getPidOfProcess('madeline-auth-');
 if(!empty($authPid)){
-    die('The authorization process has been started. The start of the service is not possible.');
+    if((time() - $mtime) < (TgUserEventHandler::MAX_TIMEOUT + 30) ){
+        die('The authorization process has been started. The start of the service is not possible.');
+    }
+    // Пинг не прошел,  шужен рестрат.
+    Processes::killByName($authPid);
 }
+
 $pid      = TelegramProviderConf::getProcessTitle();
 $settings = ModuleTelegramProvider::find();
 $settings->setHydrateMode(

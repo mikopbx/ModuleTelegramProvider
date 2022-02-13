@@ -87,7 +87,8 @@ const ModuleTelegramProvider = {
 					'bot': $('#'+className+'-table tr[id='+id+'] a[data-name="login-bot"] i')
 				};
 				for (let keyElement in elements) {
-					let elButton = elements[keyElement];
+					let elButton  = elements[keyElement];
+					$('#'+className+'-table tr[id='+id+'] a[data-name="login-'+keyElement+'"]').attr('data-tooltip', globalTranslate['module_telegram_provider_status_'+keyElement+'_'+response['data'][id][keyElement] ]);
 					if(response['data'][id][keyElement] === 'OK') {
 						elButton.removeClass('red orange');
 						elButton.addClass('green');

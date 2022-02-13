@@ -24,6 +24,32 @@ use Generator;
 
 class TgUserEventHandler extends EventHandler
 {
+    private int $loopCount    = 0;
+    private int $maxCountLoop = 10;
+    public const MAX_TIMEOUT  = 90;
+
+    public function onLoop(){
+        $this->loopCount ++;
+        if($this->loopCount < $this->maxCountLoop){
+            return;
+        }
+        $this->loopCount = 0;
+        $this->maxCountLoop = random_int(50, self::MAX_TIMEOUT);
+        if(!defined('MADELINE_BOT_ID')){
+            return;
+        }
+        yield $this->getDialogs();
+        yield $this->getSelf();
+
+        $madeLineDir = TelegramProviderConf::getModDir().'/db/madeline';
+        $fileState   = $madeLineDir.'/user-last-ping-state.txt';
+        $query = 'PING:'.time();
+        $result = yield $this->getResultsFromBot(MADELINE_BOT_ID, MADELINE_BOT_ID, $query);
+        if(yield isset($result['_']) ){
+            file_put_contents($fileState, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        }
+    }
+
     /**
      * В обработчике пытаемся перехватить сведения о воходящем звонке,
      * при поступлении звонка добавляем к чату бота
@@ -53,13 +79,7 @@ class TgUserEventHandler extends EventHandler
     private function sendKeyboard(int $peer, int $botId, string $query): \Generator
     {
         $Updates = [];
-        $params  = [
-            'bot'   => $botId,
-            'peer'  => $peer,
-            'query' => $query,
-            'offset'=> '0'
-        ];
-        $messages_BotResults = yield $this->messages->getInlineBotResults($params);
+        $messages_BotResults = yield $this->getResultsFromBot($peer, $botId, $query);
         $results = yield $messages_BotResults['results'];
         if(is_array($results) && count($results)>0){
             $msg = [
@@ -70,5 +90,16 @@ class TgUserEventHandler extends EventHandler
             $Updates = yield $this->messages->sendInlineBotResult($msg);
         }
         unset($Updates);
+    }
+
+    private function getResultsFromBot(int $peer, int $botId, string $query)
+    {
+        $params  = [
+            'bot'   => $botId,
+            'peer'  => $peer,
+            'query' => $query,
+            'offset'=> '0'
+        ];
+        return yield $this->messages->getInlineBotResults($params);
     }
 }

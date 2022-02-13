@@ -187,8 +187,8 @@ class ModuleTelegramProviderController extends BaseController
     {
         $description['ModuleTelegramProvider'] = [
             'cols' => [
-                'rowIcon'       => ['header' => '',                        'class' => 'collapsing', 'icon' => 'phone'],
-                'phone_number'  => ['header' => '',                         'class' => ''],
+                'rowIcon'       => ['header' => '',                        'class' => 'collapsing', 'icon' => 'paper plane outline'],
+                'phone_number'  => ['header' => '',                        'class' => ''],
                 'delButton'     => ['header' => '',                        'class' => 'collapsing']
             ],
             'ajaxUrl' => '/getNewRecords',

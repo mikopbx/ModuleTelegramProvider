@@ -20,19 +20,21 @@
 namespace Modules\ModuleTelegramProvider\Lib;
 
 use danog\MadelineProto\EventHandler;
+use MikoPBX\Core\System\Util;
 
 class BotEventHandler extends EventHandler
 {
-    private int $loopCount = 0;
+    private int     $loopCount = 0;
+    private int  $maxCountLoop = 100;
 
-    public function onLoop():void{
+    public function onLoop(){
         $this->loopCount ++;
-        if($this->loopCount < 1000){
+        if($this->loopCount < $this->maxCountLoop){
             return;
         }
         $this->loopCount = 0;
-        // Без вызова этого метода вероятно перестанет получаеть обновления.
-        $this->getDialogs();
+        $this->maxCountLoop = random_int(60, TgUserEventHandler::MAX_TIMEOUT);
+        yield $this->getDialogs();
     }
 
     /**
@@ -47,7 +49,7 @@ class BotEventHandler extends EventHandler
             // Автоответ должен работать только для сообщений, отправленных боту.
             return;
         }
-        if ($update['message']['_'] === 'messageEmpty' || $update['message']['out'] ?? false) {
+        if ($update['message']['_'] !== 'updateNewMessage' || $update['message']['out'] ?? false) {
             // Пустое сообщение.
             return;
         }
@@ -73,7 +75,7 @@ class BotEventHandler extends EventHandler
         $params  = [
             'noforwards'    => true,
             'peer'          => yield $this->getAPI()->getID($update),
-            'message'       => 'string',
+            'message'  => 'Last PING from BOT: '.Util::getNowDate(),
             'reply_markup'  => $replyKeyboardMarkup,
         ];
         yield $this->messages->sendMessage($params);
@@ -86,11 +88,33 @@ class BotEventHandler extends EventHandler
      */
     public function onAny($update)
     {
-        if($this->getAPI()->getSelf()['bot'] === false){
-            // Звонки возможны только на пользователя.
-            return;
-        }
         if('updateBotInlineQuery' === $update['_']){
+            if(strpos($update['query'], 'PING:') !== false){
+                $params  = [
+                    'query_id' => $update['query_id'],
+                    'results' => [
+                        [
+                            '_' => 'inputBotInlineResult',
+                            'id' => '1',
+                            'type' => 'article',
+                            'title' => 'PONG:'.time(),
+                            'send_message' => [
+                                '_' => 'inputBotInlineMessageText',
+                                'no_webpage' => true,
+                                'message' => 'PONG:'.time(),
+                            ]
+                        ],
+                    ],
+                    'cache_time' => 1,
+                ];
+                $result = yield $this->messages->setInlineBotResults($params);
+                if( yield isset($result['_']) ){
+                    $madeLineDir = TelegramProviderConf::getModDir().'/db/madeline';
+                    $fileState   = $madeLineDir."/user-last-ping-state.txt";
+                    file_put_contents($fileState, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                }
+                return;
+            }
             $replyKeyboardMarkup = [
                 '_' => 'replyInlineMarkup',
                 'resize' => false,
@@ -142,9 +166,7 @@ class BotEventHandler extends EventHandler
                 'cache_time' => 1,
             ];
             yield $this->messages->setInlineBotResults($params);
-        }
-
-        if ('updateInlineBotCallbackQuery' === $update['_']) {
+        }elseif ('updateInlineBotCallbackQuery' === $update['_']) {
             $bytes = $update['data']->__toString();
             if(empty($bytes)){
                 return;
