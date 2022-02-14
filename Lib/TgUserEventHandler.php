@@ -20,6 +20,7 @@
 namespace Modules\ModuleTelegramProvider\Lib;
 
 use danog\MadelineProto\EventHandler;
+use danog\MadelineProto\VoIP;
 use Generator;
 
 class TgUserEventHandler extends EventHandler
@@ -27,6 +28,8 @@ class TgUserEventHandler extends EventHandler
     private int $loopCount    = 0;
     private int $maxCountLoop = 10;
     public const MAX_TIMEOUT  = 90;
+    private array $activeCalls= [];
+
 
     public function onLoop(){
         $this->loopCount ++;
@@ -59,27 +62,39 @@ class TgUserEventHandler extends EventHandler
      * @throws \danog\MadelineProto\Exception
      */
     public function onUpdatePhoneCall($update) {
-        if($update['phone_call']->getCallState() !== \danog\MadelineProto\VoIP::CALL_STATE_INCOMING){
-            // Звонки возможны только на пользователя.
-            return;
+        $state =$update['phone_call']->getCallState();
+        if( $state === VoIP::CALL_STATE_ENDED) {
+            $callId  = $update['phone_call']->getCallID()['id'];
+            $msgData = $this->activeCalls[$callId]??[];
+            if(isset($msgData)){
+                $id = '';
+                foreach ($msgData['updates'] as $updateData){
+                    if($updateData['_'] === 'updateMessageID'){
+                        $id = $updateData["id"];
+                        break;
+                    }
+                }
+                if(!empty($id)){
+                    $this->messages->deleteMessages(['revoke' => true, 'id' => [$msgData['updates'][0]["id"]]]);
+                }
+                unset($this->activeCalls[$callId]);
+            }
+        }elseif($state === VoIP::CALL_STATE_INCOMING){
+            yield $this->sendKeyboard($update);
         }
-        $chatId     = yield $this->getAPI()->getID($update);
-        if(defined('MADELINE_BOT_ID')){
-            yield $this->sendKeyboard($chatId, MADELINE_BOT_ID, ''.time());
-        }
+
     }
 
     /**
      * Отправка клавиатуры пользователю. с помощью inline бота.
-     * @param int    $peer
-     * @param int    $botId
-     * @param string $query
+     * @param array  $update
      * @return Generator
      */
-    private function sendKeyboard(int $peer, int $botId, string $query): \Generator
+    private function sendKeyboard(array $update): \Generator
     {
+        $peer    = yield $this->getAPI()->getID($update);
         $Updates = [];
-        $messages_BotResults = yield $this->getResultsFromBot($peer, $botId, $query);
+        $messages_BotResults = yield $this->getResultsFromBot($peer, MADELINE_BOT_ID, ''.time());
         $results = yield $messages_BotResults['results'];
         if(is_array($results) && count($results)>0){
             $msg = [
@@ -88,6 +103,10 @@ class TgUserEventHandler extends EventHandler
                 'id' => $messages_BotResults['results'][0]['id'],
             ];
             $Updates = yield $this->messages->sendInlineBotResult($msg);
+            if(yield is_array($Updates)){
+                $callId = $update['phone_call']->getCallID()['id'];
+                $this->activeCalls[$callId] = $Updates;
+            }
         }
         unset($Updates);
     }
