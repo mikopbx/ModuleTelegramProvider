@@ -90,7 +90,6 @@ foreach ($settings as $setting){
  */
 $sessionName     = $modDir."/".TelegramAuth::BOT_SESSION_PATH;
 if(!empty($botId) && file_exists($sessionName)){
-    define('MADELINE_BOT_ID', $botId);
     $title.="-bot";
     $MadelineProto []= new API($sessionName, $apiSettings);
     $handlers      []= BotEventHandler::class;

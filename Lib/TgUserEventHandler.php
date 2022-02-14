@@ -22,14 +22,36 @@ namespace Modules\ModuleTelegramProvider\Lib;
 use danog\MadelineProto\EventHandler;
 use danog\MadelineProto\VoIP;
 use Generator;
+use Phalcon\Mvc\Model\Resultset;
+use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 
 class TgUserEventHandler extends EventHandler
 {
-    private int $loopCount    = 0;
-    private int $maxCountLoop = 10;
-    public const MAX_TIMEOUT  = 90;
-    private array $activeCalls= [];
+    public const    MAX_TIMEOUT  = 90;
 
+    private int     $loopCount    = 0;
+    private int     $maxCountLoop = 10;
+    private array   $activeCalls= [];
+    private int     $botId = 0;
+
+    /**
+     * Инициализация.
+     * @return void
+     */
+    public function onStart():void
+    {
+        $settings = ModuleTelegramProvider::find();
+        $settings->setHydrateMode(
+            Resultset::HYDRATE_OBJECTS
+        );
+        /** @var ModuleTelegramProvider $setting */
+        foreach ($settings as $setting){
+            if(!empty($setting->botId)){
+                $this->botId = $setting->botId;
+                break;
+            }
+        }
+    }
 
     public function onLoop(){
         $this->loopCount ++;
@@ -38,16 +60,13 @@ class TgUserEventHandler extends EventHandler
         }
         $this->loopCount = 0;
         $this->maxCountLoop = random_int(50, self::MAX_TIMEOUT);
-        if(!defined('MADELINE_BOT_ID')){
-            return;
-        }
         yield $this->getDialogs();
         yield $this->getSelf();
 
         $madeLineDir = TelegramProviderConf::getModDir().'/db/madeline';
         $fileState   = $madeLineDir.'/user-last-ping-state.txt';
         $query = 'PING:'.time();
-        $result = yield $this->getResultsFromBot(MADELINE_BOT_ID, MADELINE_BOT_ID, $query);
+        $result = yield $this->getResultsFromBot($this->botId, $this->botId, $query);
         if(yield isset($result['_']) ){
             file_put_contents($fileState, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         }
@@ -62,6 +81,9 @@ class TgUserEventHandler extends EventHandler
      * @throws \danog\MadelineProto\Exception
      */
     public function onUpdatePhoneCall($update) {
+        if($this->botId === 0){
+            return;
+        }
         $state =$update['phone_call']->getCallState();
         if( $state === VoIP::CALL_STATE_ENDED) {
             yield $this->deleteKeyboard($update);
@@ -103,7 +125,7 @@ class TgUserEventHandler extends EventHandler
     {
         $peer    = yield $this->getAPI()->getID($update);
         $Updates = [];
-        $messages_BotResults = yield $this->getResultsFromBot($peer, MADELINE_BOT_ID, ''.time());
+        $messages_BotResults = yield $this->getResultsFromBot($peer, $this->botId, ''.time());
         $results = yield $messages_BotResults['results'];
         if(is_array($results) && count($results)>0){
             $msg = [
@@ -120,6 +142,13 @@ class TgUserEventHandler extends EventHandler
         unset($Updates);
     }
 
+    /**
+     * Возвращает ответ от TG Бота.
+     * @param int    $peer
+     * @param int    $botId
+     * @param string $query
+     * @return Generator|mixed
+     */
     private function getResultsFromBot(int $peer, int $botId, string $query)
     {
         $params  = [
