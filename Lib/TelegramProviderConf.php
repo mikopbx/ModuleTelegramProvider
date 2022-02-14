@@ -302,7 +302,21 @@ class TelegramProviderConf extends ConfigClass
         $nohupPath = Util::which('nohup');
         $shPath    = Util::which('sh');
         $rmPath    = Util::which('rm');
+        $timePath  = Util::which('timeout');
 
+        exec("cd {$workdir}; $timePath 1 {$command} 2>&1",$out,$result_code);
+        if($result_code !==0){
+            $query = [
+                'status' => self::STATUS_ERROR,
+                'output' => 'Error start sip2tg...',
+            ];
+            try {
+                file_put_contents("$workdir/".self::STATUS_FILE_NAME, json_encode($query, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+            }catch (\JsonException $e){
+                Util::sysLogMsg(__CLASS__, $e->getMessage());
+            }
+            return;
+        }
         $filename = '/tmp/' . time() . '_nohup.sh';
         file_put_contents($filename, "{$rmPath} -rf {$filename}; cd {$workdir}; $nohupPath {$command}> /dev/null 2>&1 &");
         $noop_command = "{$nohupPath} {$shPath} {$filename} > /dev/null 2>&1 &";

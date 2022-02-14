@@ -278,7 +278,7 @@ const ModuleTelegramProvider = {
 							'<a data-name="login-bot"  href="" class="ui button popuped"><i class="icon android secret"></i></a>'+
 							'<a data-name="delete-button" href="' + window[className].deleteRecordAJAXUrl + '/' +
 							data.DT_RowId + '" data-value = "' + data.DT_RowId + '"' +
-							' class="ui button delete two-steps-delete popuped" data-content="' + globalTranslate.bt_ToolTipDelete + '">' +
+							' class="ui button delete two-steps-delete popuped" data-tooltip="'+globalTranslate.module_telegram_provider_action_remove+'" data-content="' + globalTranslate.bt_ToolTipDelete + '">' +
 							'<i class="icon trash red"></i></a></div>';
 						cols.eq(index).html(templateDeleteButton);
 						cols.eq(index).addClass('right aligned');
