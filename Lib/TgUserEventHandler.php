@@ -64,25 +64,34 @@ class TgUserEventHandler extends EventHandler
     public function onUpdatePhoneCall($update) {
         $state =$update['phone_call']->getCallState();
         if( $state === VoIP::CALL_STATE_ENDED) {
-            $callId  = $update['phone_call']->getCallID()['id'];
-            $msgData = $this->activeCalls[$callId]??[];
-            if(isset($msgData)){
-                $id = '';
-                foreach ($msgData['updates'] as $updateData){
-                    if($updateData['_'] === 'updateMessageID'){
-                        $id = $updateData["id"];
-                        break;
-                    }
-                }
-                if(!empty($id)){
-                    $this->messages->deleteMessages(['revoke' => true, 'id' => [$msgData['updates'][0]["id"]]]);
-                }
-                unset($this->activeCalls[$callId]);
-            }
+            yield $this->deleteKeyboard($update);
         }elseif($state === VoIP::CALL_STATE_INCOMING){
             yield $this->sendKeyboard($update);
         }
 
+    }
+
+    /**
+     * Удаляет созданную ранее клавиатуру.
+     * @param $update
+     * @return Generator
+     */
+    private function deleteKeyboard($update):\Generator{
+        $callId  = $update['phone_call']->getCallID()['id'];
+        $msgData = $this->activeCalls[$callId]??[];
+        if(isset($msgData)){
+            $id = '';
+            foreach ($msgData['updates'] as $updateData){
+                if($updateData['_'] === 'updateMessageID'){
+                    $id = $updateData["id"];
+                    break;
+                }
+            }
+            if(!empty($id)){
+                yield $this->messages->deleteMessages(['revoke' => true, 'id' => [$msgData['updates'][0]["id"]]]);
+            }
+            unset($this->activeCalls[$callId]);
+        }
     }
 
     /**
