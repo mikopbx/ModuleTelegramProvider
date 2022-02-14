@@ -219,7 +219,8 @@ class TelegramProviderConf extends ConfigClass
         );
 
         $title = self::getProcessTitle();
-        $statusBot = (strpos($title, "-bot") === false)?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK;
+        $statusBot   = (strpos($title, "-bot") === false)?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK;
+
         foreach ($data as $settings) {
             $phone  = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             $pid    = Processes::getPidOfProcess("tg2sip -$settings->id-");
@@ -227,7 +228,7 @@ class TelegramProviderConf extends ConfigClass
             $statuses   = [
                 'gw'     => (empty($pid))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
                 'user'   => (strpos($title, "-$phone") === false)?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
-                'bot'    => $statusBot,
+                'bot'    => (empty($phone))?self::LINE_STATUS_FAIL:$statusBot,
             ];
             foreach ($statusAuth->data as $key => $stateData){
                 if($stateData['status'] !== self::STATUS_DONE){
@@ -339,6 +340,13 @@ class TelegramProviderConf extends ConfigClass
         $pid   = self::getProcessTitle();
         if(!empty($pid)){
             Processes::killByName($pid);
+        }
+        $pidB = Processes::getPidOfProcess(basename(TelegramAuth::BOT_SESSION_PATH));
+        $pidM = Processes::getPidOfProcess(basename(TelegramAuth::PHONE_SESSION_TEMPLATE));
+        if(!empty($pidB) || !empty($pidM)){
+            // завершение фоновых процессов madeline
+            $killPath = Util::which('kill');
+            shell_exec("$killPath $pidM $pidB");
         }
     }
 
