@@ -1,20 +1,37 @@
 
 <form class="ui large grey segment form" id="module-telegram-provider-form">
     {{ form.render('id') }}
-
     <div class="ui grey top right attached label" id="status">{{ t._("module_telegram_providerUpdateStatus") }}</div>
-
+    <h4 class="ui grey header">
+        {{ t._("module_telegram_providerStep1") }}
+         <div class="sub header">
+            {{ t._("module_telegram_providerStep1Part1") }}
+            <a href="https://my.telegram.org/auth" target="_blank"> {{ t._("module_telegram_providerUrlGetId") }} </a>
+            {{ t._("module_telegram_providerStep1Part2") }}
+        </div>
+    </h4>
     <div class="ten wide field">
-        <label >{{ t._('module_telegram_provider_api_id') }}</label>
+        <label class="ui grey header" >{{ t._('module_telegram_provider_api_id') }}</label>
         {{ form.render('api_id') }}
     </div>
     <div class="ten wide field">
-        <label >{{ t._('module_telegram_provider_api_hash') }}</label>
+        <label class="ui grey header">{{ t._('module_telegram_provider_api_hash') }}</label>
         {{ form.render('api_hash') }}
     </div>
-    <a href="https://my.telegram.org/auth" target="_blank"> {{ t._("module_telegram_providerUrlGetId") }} </a>
+    <h4 class="ui grey header">
+        {{ t._("module_telegram_providerStep2") }}
+        <div class="sub header">{{ t._("module_telegram_providerStep2Title") }} </div>
+    </h4>
+    {{ partial("partials/submitbutton") }}
     <br>
     <br>
+</form>
+
+<form class="ui large grey segment form" id="module-telegram-provider-form">
+    <h4 class="ui grey header">
+        {{ t._("module_telegram_providerStep3") }}
+        <div class="sub header">{{ t._("module_telegram_providerStep3Title") }} </div>
+    </h4>
     <div class="ui grid">
         <div class="ui row">
             <div class="ui five wide column">
@@ -24,13 +41,16 @@
     </div>
     <br>
     <table id="ModuleTelegramProvider-table" class="ui small very compact single line table"> </table>
-    <br>
-    {{ partial("partials/submitbutton",['indexurl':'pbx-extension-modules/index/']) }}
-
+    <h4 class="ui grey header">
+        {{ t._("module_telegram_providerStep4") }}
+        <div class="sub header">{{ t._("module_telegram_providerStep4Title") }} </div>
+    </h4>
     <div id="dimmer-wait-status" class="ui dimmer">
         <div class="ui massive text loader"> {{ t._("module_telegram_providerWaitAuth") }} </div>
     </div>
 </form>
+
+
 <div id="error-message" class="ui warning message" style="display: none;">
     <div class="header">
 

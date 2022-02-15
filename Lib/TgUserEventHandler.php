@@ -23,6 +23,7 @@ use danog\MadelineProto\EventHandler;
 use danog\MadelineProto\VoIP;
 use Generator;
 use Phalcon\Mvc\Model\Resultset;
+use MikoPBX\Common\Models\ExternalPhones;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 
 class TgUserEventHandler extends EventHandler
@@ -54,6 +55,9 @@ class TgUserEventHandler extends EventHandler
     }
 
     public function onLoop(){
+//        if(($this->loopCount % 10) === 0){
+//            yield $this->updateStatuses();
+//        }
         $this->loopCount ++;
         if($this->loopCount < $this->maxCountLoop){
             return;
@@ -158,5 +162,41 @@ class TgUserEventHandler extends EventHandler
             'offset'=> '0'
         ];
         return yield $this->messages->getInlineBotResults($params);
+    }
+
+    private function updateStatuses(): \Generator{
+        $statuses = yield $this->contacts->getStatuses();
+        if(yield $statuses){
+            $id = [];
+            foreach ($statuses as $stateData){
+                if(in_array($stateData['_'], ['userStatusOffline', 'userStatusLastWeek']) ){
+                    continue;
+                }
+                $id[] = $stateData['user_id'];
+            }
+            $users = yield $this->users->getUsers(['id' => $id]);
+            if(yield $users){
+                $onlineUsers = [];
+                /** @var ExternalPhones $extPhone */
+                $externalPhones = ExternalPhones::find();
+                $externalPhones->setHydrateMode(
+                    Resultset::HYDRATE_OBJECTS
+                );
+                $mobilePhones = [];
+                foreach ($externalPhones as $extPhone){
+                    if(strlen($extPhone->dialstring) > 10){
+                        $mobilePhones[substr($extPhone->dialstring, -10)] = $extPhone->dialstring;
+                    }
+                }
+                unset($externalPhones);
+                foreach ($users as $user){
+                    $key = substr($user['phone'], -10);
+                    if(isset($mobilePhones[$key])){
+                        $onlineUsers[] = $user;
+                    }
+                }
+                unset($mobilePhones);
+            }
+        }
     }
 }

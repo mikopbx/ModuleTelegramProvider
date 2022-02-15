@@ -15,9 +15,21 @@ return [
     'module_telegram_AddNewRecord'    => 'Добавить',
 
     'module_telegram_provider_phone_number'         => 'Номер телефона',
-    'module_telegram_provider_api_id'               => 'App api_id',
-    'module_telegram_provider_api_hash'             => 'App api_hash:',
-    'module_telegram_providerUrlGetId'              => 'Получить "App api_id" и "App api_hash"...',
+    'module_telegram_provider_api_id'               => 'api_id',
+    'module_telegram_provider_api_hash'             => 'api_hash:',
+
+    'module_telegram_providerUrlGetId'              => 'этой ссылке',
+    'module_telegram_providerStep2'                 => 'Шаг №2:',
+    'module_telegram_providerStep2Title'            => 'После ввода "<b>api_id</b>" и "<b>api_hash</b>" сохраните настройки и включите модуль',
+    'module_telegram_providerStep1'                 => 'Шаг №1:',
+    'module_telegram_providerStep1Part1'            => 'Получите значения "<b>api_id</b>" и "<b>api_hash</b>" по',
+    'module_telegram_providerStep1Part2'            => 'и заполните поля ниже:',
+    'module_telegram_providerStep3'                 => 'Шаг №3:',
+    'module_telegram_providerStep3Title'                 => 'Добавьте в таблицу ниже номер телефона от учетной записи Telegram и выполните авторизацию. В появившемся диалоговом окне введите код авторизации.',
+
+    'module_telegram_providerStep4'                 => 'Шаг №4:',
+    'module_telegram_providerStep4Title'            => 'Дождитесь пока модуль авторизуется в Telegram и вручную настройте провайдера, входящие и исходящие маршруты. В общих настройках включите кодек OPUS.',
+
     'module_telegram_providerError'                 => 'При попытке авторизации произошла ошибка',
     'module_telegram_providerReconnect'             => 'Повторить попытку подключения...',
 
