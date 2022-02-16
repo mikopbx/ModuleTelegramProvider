@@ -44,6 +44,8 @@ class TelegramAuth extends WorkerBase
     private const  STDOUT_NUM       = 1;
     private const  STDERR_NUM       = 2;
 
+
+    private int    $id = 0;
     private        $proc;
     private array  $pipes = [];
     private string $moduleDir;
@@ -295,10 +297,10 @@ class TelegramAuth extends WorkerBase
         if(is_resource($this->proc)){
             proc_terminate($this->proc);
         }
-        if(empty($this->error)){
+        if(empty($this->error) && $this->id > 0){
             $this->updateStatus(TelegramProviderConf::STATUS_DONE, '');
             $tg = new TelegramProviderConf();
-            $tg->startLauncher();
+            $tg->startLauncher($this->id);
         }
     }
 
@@ -406,6 +408,7 @@ class TelegramAuth extends WorkerBase
             return $filename;
         }
         $settings   = ModuleTelegramProvider::findFirst("phone_number='$this->login'");
+        $this->id   = $settings->id;
         $filename   = $this->workDir.'/settings.ini';
         if(file_exists($filename)){
             $output = shell_exec("cd '$this->workDir'; /bin/busybox timeout 0.5 $this->moduleDir/bin/gen_db 2>&1");
