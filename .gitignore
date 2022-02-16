@@ -2,5 +2,3 @@
 /bin/tg2sip
 /vendor/
 /composer.lock
-/public/assets/js/module-telegram-provider-index.js
-/public/assets/js/module-telegram-provider-index.js.map
