@@ -180,6 +180,9 @@ class TelegramAuth extends WorkerBase
             return;
         }
         $settings       = self::messengerInitSettings();
+        // Очистка прошлых сессий.
+        shell_exec(Util::which('rm')." -rf $sessionPath*");
+
         $MadelineProto  = new API($sessionPath, $settings);
         Shutdown::addCallback(static function () use ($MadelineProto) {
             $MadelineProto->__destruct();
