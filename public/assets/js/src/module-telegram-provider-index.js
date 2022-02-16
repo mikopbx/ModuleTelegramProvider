@@ -160,7 +160,11 @@ const ModuleTelegramProvider = {
 				window[className].authProcess = '';
 				elDimmer.removeClass('active');
 			}else if(statusData.status === 'WaitInput' && statusData.data.trim() === ''){
-				$('#command-dialog form div.field label').text(statusData.output);
+				let translateStatus = globalTranslate[statusData.output];
+				if(translateStatus === undefined){
+					translateStatus = statusData.output;
+				}
+				$('#command-dialog form div.field label').text(translateStatus);
 				$('input[id=command]').val('');
 				let phone = $('#ModuleTelegramProvider-table tr[id='+id+'] input[colname="phone_number"]').val();
 				$('#command-dialog a.ui.ribbon.label').text(phone);

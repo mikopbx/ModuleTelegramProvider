@@ -61,4 +61,11 @@ return [
     'module_telegram_provider_status_bot_FAIL'      => 'Telegram бот: Не авторизован',
 
     'module_telegram_provider_action_remove'        => 'Удалить',
+    'messengerGetPhoneCode'                         => 'В Telegram был выслан секретный код. Введите код авторизации:',
+    'messengerGetBotToken'                          => 'Введите token от своего Telegram бота:',
+    'Confirm this login link on another device:'    => 'Подтведите вход на другом устройстве, с запущенным Telegram:',
+    'Enter authentication password:'                => 'Введите пароль аккаунта Telegram:',
+    'Enter your first name:'                        => 'Введите свое имя для регистрации в Telegram:',
+    'Enter your last name:'                         => 'Введите свою фамилию для регистрации в Telegram:',
+    'Enter phone number:'                           => 'Введите номер телефона для регистрации в Telegram:',
 ];

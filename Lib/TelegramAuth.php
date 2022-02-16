@@ -142,11 +142,11 @@ class TelegramAuth extends WorkerBase
         $MadelineProto->phoneLogin($phone);
         $authorization = $MadelineProto->completePhoneLogin($this->getInputData('messengerGetPhoneCode'));
         if ($authorization['_'] === 'account.password') {
-            $authorization = $MadelineProto->complete2falogin($this->getInputData('messengerGetPassword'));
+            $authorization = $MadelineProto->complete2falogin($this->getInputData('Enter authentication password:'));
         }
         if ($authorization['_'] === 'account.needSignup') {
-            $firstName = $this->getInputData('messengerGetFirstName');
-            $lastName  = $this->getInputData('messengerGetLastName');
+            $firstName = $this->getInputData('Enter your first name:');
+            $lastName  = $this->getInputData('Enter your last name:');
             $MadelineProto->completeSignup($firstName, $lastName);
         }
         if($authorization['_'] === self::AUTH_OBJECT_NAME && isset($authorization['user']['phone'])){
