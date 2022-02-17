@@ -108,9 +108,13 @@ class ModuleTelegramProviderController extends BaseController
         if ($settings === null) {
             $settings = new ModuleTelegramProvider();
         }
-        $options = [];
+        $options = [
+            "queues" => CallQueues::find(['columns' => ['id', 'name']]),
+        ];
         $this->view->form = new ModuleTelegramProviderForm($settings, $options);
         $this->view->pick("{$this->moduleDir}/App/Views/index");
+        $this->view->queues = $options['queues'];
+
     }
 
     /**
@@ -136,10 +140,14 @@ class ModuleTelegramProviderController extends BaseController
             $this->db->rollback();
             return;
         }
+        /** @var ModuleTelegramProvider $rowData */
         $records = ModuleTelegramProvider::find();
         foreach ($records as $rowData){
-            $rowData->api_id    = $record->api_id;
-            $rowData->api_hash  = $record->api_hash;
+            $rowData->api_id            = $record->api_id;
+            $rowData->api_hash          = $record->api_hash;
+            $rowData->businessCardText  = $record->businessCardText;
+            $rowData->keyboardText      = $record->keyboardText;
+            $rowData->callbackQueue     = $record->callbackQueue;
             $rowData->save();
         }
         $this->flash->success($this->translation->_('ms_SuccessfulSaved'));

@@ -31,5 +31,17 @@ class ModuleTelegramProviderForm extends Form
         $this->add(new Text('api_id'));
         $this->add(new Password('api_hash'));
 
+        $this->add(new TextArea('businessCardText', ['rows' => 2]));
+        $this->add(new TextArea('keyboardText', ['rows' => 2]));
+
+        $queues = new Select('callbackQueue', $options['queues'], [
+            'using'    => [
+                'id',
+                'name',
+            ],
+            'useEmpty' => true,
+            'class'    => 'ui selection dropdown provider-select',
+        ]);
+        $this->add($queues);
     }
 }

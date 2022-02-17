@@ -68,4 +68,21 @@ return [
     'Enter your first name:'                        => 'Введите свое имя для регистрации в Telegram:',
     'Enter your last name:'                         => 'Введите свою фамилию для регистрации в Telegram:',
     'Enter phone number:'                           => 'Введите номер телефона для регистрации в Telegram:',
+
+    "Enter the employee's internal number"          => 'Введите внутренний номер абонента',
+    'Internal number entry form'                    => 'Форма ввода добавочного номера',
+    'Ordering a callback'                           => 'Заказ обратного звонка',
+    'Unfortunately, we have not reached you. You can order a callback using the button below' => 'К сожалению мы до Вас не дозвонились. Заказать обратный звонок можно по кнопке ниже',
+    'request a call back'                           => 'Перезвонить',
+
+    'Identifiers' => 'Идентификаторы',
+    'MessageTemplates' => 'Шаблоны сообщений',
+    'CallbackText' => 'Обратный звонок',
+    'businessCardText' => 'Текст визитки',
+    'businessCardSubText' => 'Будет отправлен сообщением в Telegram клиента, если он не ответил на звонок.',
+    'keyboardText' => 'Текст клавиатуры ввода внутреннего номера',
+    'keyboardSubText' => 'Будет отправлен вместе с клавиатурой в Telegram клиента при входящем звонке.',
+    'callbackQueueText' => 'Очередь для обработки звонков',
+    'callbackQueueSubText' => '<br> Функция предназначена для случаев, когда клиент не ответил навызов.<br>Если вызов пропущен клиентом, то ему будет оправлена визитка. <br> Вместе с визиткой отправляется кнопка "Перезвонить".<br> При нажатии на кнопку вызов, будет направлен на очередь.<br> Как только сотрудник поднимет трубку, вызов будет направлен клиенту.<br>',
+
 ];

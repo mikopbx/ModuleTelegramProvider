@@ -35,7 +35,7 @@ if(!empty($ID)){
         'channel'       => $agi->request['agi_channel']
     ];
     try {
-        $cacheAdapter->set($ID, $data, 180);
+        $cacheAdapter->set($ID, $data, 600);
     }catch (Throwable $e){
         Util::sysLogMsg('TG-PROVIDER', $e->getMessage());
     }

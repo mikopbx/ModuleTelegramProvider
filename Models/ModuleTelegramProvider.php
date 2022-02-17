@@ -47,6 +47,24 @@ class ModuleTelegramProvider extends ModulesModelsBase
 
     /**
      *
+     * @Column(type="string", nullable=true)
+     */
+    public $businessCardText = '';
+
+    /**
+     *
+     * @Column(type="string", nullable=true)
+     */
+    public $keyboardText = '';
+
+    /**
+     *
+     * @Column(type="string", nullable=true)
+     */
+    public $callbackQueue = '';
+
+    /**
+     *
      * @Column(type="integer", nullable=true)
      */
     public $priority = '0';

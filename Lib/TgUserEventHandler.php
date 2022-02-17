@@ -34,6 +34,7 @@ class TgUserEventHandler extends EventHandler
     private int     $maxCountLoop = 10;
     private array   $activeCalls= [];
     private int     $botId = 0;
+    private int     $myId  = 0;
 
     /**
      * Инициализация.
@@ -41,7 +42,8 @@ class TgUserEventHandler extends EventHandler
      */
     public function onStart():void
     {
-        $settings = ModuleTelegramProvider::find();
+        $this->myId = $this->getAPI()->getSelf()['id'];
+        $settings   = ModuleTelegramProvider::find();
         $settings->setHydrateMode(
             Resultset::HYDRATE_OBJECTS
         );
@@ -71,7 +73,7 @@ class TgUserEventHandler extends EventHandler
         $fileState   = $madeLineDir.'/user-last-ping-state.txt';
         $query = 'PING:'.time();
         $result = yield $this->getResultsFromBot($this->botId, $this->botId, $query);
-        if(yield isset($result['_']) ){
+        if(yield $result ){
             file_put_contents($fileState, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         }
     }
@@ -89,9 +91,7 @@ class TgUserEventHandler extends EventHandler
             return;
         }
         $state =$update['phone_call']->getCallState();
-        if( $state === VoIP::CALL_STATE_ENDED) {
-            yield $this->deleteKeyboard($update);
-        }elseif($state === VoIP::CALL_STATE_INCOMING){
+        if($state === VoIP::CALL_STATE_INCOMING){
             yield $this->sendKeyboard($update);
         }
 
@@ -103,7 +103,7 @@ class TgUserEventHandler extends EventHandler
      * @return Generator
      */
     private function deleteKeyboard($update):\Generator{
-        $callId  = $update['phone_call']->getCallID()['id'];
+        $callId  = $update['message']["action"]["call_id"];
         $msgData = $this->activeCalls[$callId]??[];
         if(isset($msgData)){
             $id = '';
@@ -122,28 +122,55 @@ class TgUserEventHandler extends EventHandler
 
     /**
      * Отправка клавиатуры пользователю. с помощью inline бота.
-     * @param array  $update
+     * @param array   $update
+     * @param string  $query
      * @return Generator
      */
-    private function sendKeyboard(array $update): \Generator
+    private function sendKeyboard(array $update, string $query = ''): \Generator
     {
-        $peer    = yield $this->getAPI()->getID($update);
-        $Updates = [];
-        $messages_BotResults = yield $this->getResultsFromBot($peer, $this->botId, ''.time());
-        $results = yield $messages_BotResults['results'];
-        if(is_array($results) && count($results)>0){
-            $msg = [
-                'peer' => $peer,
-                'query_id' => $messages_BotResults['query_id'],
-                'id' => $messages_BotResults['results'][0]['id'],
-            ];
-            $Updates = yield $this->messages->sendInlineBotResult($msg);
-            if(yield is_array($Updates)){
-                $callId = $update['phone_call']->getCallID()['id'];
-                $this->activeCalls[$callId] = $Updates;
+        $userData = yield $this->users->getUsers(['id' => [$update["message"]["peer_id"]["user_id"]]]);
+        if(yield $userData){
+            if($query===''){
+                $query = ''.time();
             }
+            $data = json_encode([
+                                    'login' => $this->getAPI()->getSelf()['phone'],
+                                    'query' => $query,
+                                    'phone' => $userData[0]['phone']??'',
+                                    'username' => $userData[0]['username']??'',
+                                    'id' => $userData[0]['id']??'',
+                                ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+
+            $peer    = yield $this->getAPI()->getID($update);
+            $responseData = [];
+            $messages_BotResults = yield $this->getResultsFromBot($peer, $this->botId, $data);
+            $results = yield $messages_BotResults['results'];
+            if((yield $results) && count($results)>0){
+                $msg = [
+                    'peer' => $peer,
+                    'query_id' => $messages_BotResults['query_id'],
+                    'id' => $messages_BotResults['results'][0]['id'],
+                ];
+                $responseData = yield $this->messages->sendInlineBotResult($msg);
+                if(isset($update['phone_call']) && yield is_array($responseData)){
+                    $callId = $update['phone_call']->getCallID()['id'];
+                    $this->activeCalls[$callId] = $responseData;
+                }
+            }
+            unset($responseData);
         }
-        unset($Updates);
+    }
+
+    public function onAny($update)
+    {
+        $reason = $update['message']["action"]["reason"]['_']??'';
+        $fromId = $update['message']["from_id"]["user_id"]??0;
+        if($reason === 'phoneCallDiscardReasonHangup' && $this->myId !== $fromId){
+            yield $this->deleteKeyboard($update);
+        }elseif($reason === 'phoneCallDiscardReasonMissed' && $this->myId === $fromId){
+            yield $this->messages->deleteMessages(['revoke' => true, 'id' => [$update['message']["id"]]]);
+            yield $this->sendKeyboard($update, 'callback');
+        }
     }
 
     /**
