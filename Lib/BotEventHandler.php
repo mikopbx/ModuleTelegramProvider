@@ -20,7 +20,6 @@
 namespace Modules\ModuleTelegramProvider\Lib;
 
 use MikoPBX\Common\Models\CallQueues;
-use MikoPBX\Common\Models\IncomingRoutingTable;
 use MikoPBX\Common\Models\OutgoingRoutingTable;
 use MikoPBX\Core\System\Util;
 use danog\MadelineProto\EventHandler;
