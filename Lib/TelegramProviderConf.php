@@ -408,6 +408,7 @@ class TelegramProviderConf extends ConfigClass
                 'same => n,ExecIf($["${TG_PHONE}x" != "x"]?Set(CALLERID(num)=${TG_PHONE}))'.PHP_EOL."\t".
                 'same => n,ExecIf($["${TG_USER}x" != "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_USER}))'.PHP_EOL."\t".
                 'same => n,ExecIf($["${TG_ID}x" != "x" && "${TG_USER}x" == "x" && "${TG_PHONE}x" == "x" ]?Set(CALLERID(num)=${TG_ID}))'.PHP_EOL."\t".
+                'same => n,ExecIf($["${TG_ID}x" != "x"]?Wait(1))'.PHP_EOL."\t".
                 'same => n,AGI('.$this->moduleDir.'/agi-bin/saveSipHeadersInRedis.php)'.PHP_EOL;
     }
 

@@ -102,7 +102,7 @@ class TgUserEventHandler extends EventHandler
     private function deleteKeyboard($update):\Generator{
         $callId  = $update['message']["action"]["call_id"];
         $msgData = $this->activeCalls[$callId]??[];
-        if(isset($msgData)){
+        if(isset($msgData['updates'])){
             $id = '';
             foreach ($msgData['updates'] as $updateData){
                 if($updateData['_'] === 'updateMessageID'){
@@ -119,13 +119,20 @@ class TgUserEventHandler extends EventHandler
 
     /**
      * Отправка клавиатуры пользователю. с помощью inline бота.
-     * @param array   $update
-     * @param string  $query
+     * @param array  $update
+     * @param string $query
      * @return Generator
+     * @throws \JsonException
+     * @throws \danog\MadelineProto\Exception
      */
     private function sendKeyboard(array $update, string $query = ''): \Generator
     {
-        $userData = yield $this->users->getUsers(['id' => [$update["message"]["peer_id"]["user_id"]]]);
+        $userId = $update["message"]["peer_id"]["user_id"]??'';
+        if(empty($userId) && isset($update['phone_call'])){
+            $userId = $update['phone_call']->getOtherID();
+        }
+
+        $userData = yield $this->users->getUsers(['id' => [$userId]]);
         if(yield $userData){
             if($query===''){
                 $query = ''.time();
@@ -158,7 +165,13 @@ class TgUserEventHandler extends EventHandler
         }
     }
 
-    public function onAny($update)
+    /**
+     * @param $update
+     * @return Generator
+     * @throws \JsonException
+     * @throws \danog\MadelineProto\Exception
+     */
+    public function onAny($update):\Generator
     {
         $reason = $update['message']["action"]["reason"]['_']??'';
         $fromId = $update['message']["from_id"]["user_id"]??0;
@@ -178,6 +191,7 @@ class TgUserEventHandler extends EventHandler
      */
     public function onUpdateNewMessage(array $update):\Generator
     {
+        yield $this->onAny($update);
         if ($update['message']['_'] !== 'updateNewMessage'
             && !$update['message']['out'] && isset($update['message']['user_id'])) {
             $result = BotEventHandler::sendDTMF($update['message'], $update['message']['message']);
