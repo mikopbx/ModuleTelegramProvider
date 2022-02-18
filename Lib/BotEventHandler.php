@@ -78,7 +78,7 @@ class BotEventHandler extends EventHandler
                 $this->callbackQueue    = $setting->callbackQueue;
             }
             $login = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $setting->phone_number);
-            $this->prefixes[$login] = $idRoutes[$idProviders[30000 + $setting->id]]??'';
+            $this->prefixes[$login] = $idRoutes[$idProviders[30000 + $setting->id]??'']??'';
         }
         /** @var CallQueues $queue */
         $queues = CallQueues::find("id='$this->callbackQueue'");
