@@ -56,7 +56,12 @@ class TgUserEventHandler extends EventHandler
         }
     }
 
-    public function onLoop(){
+    /**
+     * Метод вызывается каждую секунду.
+     * Для поддержания сессии вызываем getDialogs и отправляем inline запрос боту. .
+     * @return Generator
+     */
+    public function onLoop():?Generator{
         $this->loopCount ++;
         if($this->loopCount < $this->maxCountLoop){
             return;
