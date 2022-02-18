@@ -57,9 +57,6 @@ class TgUserEventHandler extends EventHandler
     }
 
     public function onLoop(){
-//        if(($this->loopCount % 10) === 0){
-//            yield $this->updateStatuses();
-//        }
         $this->loopCount ++;
         if($this->loopCount < $this->maxCountLoop){
             return;
@@ -170,6 +167,25 @@ class TgUserEventHandler extends EventHandler
         }elseif($reason === 'phoneCallDiscardReasonMissed' && $this->myId === $fromId){
             yield $this->messages->deleteMessages(['revoke' => true, 'id' => [$update['message']["id"]]]);
             yield $this->sendKeyboard($update, 'callback');
+        }
+    }
+
+    /**
+     * Handle updates from users.
+     *
+     * @param array $update Update
+     *
+     */
+    public function onUpdateNewMessage(array $update):\Generator
+    {
+        if ($update['message']['_'] !== 'updateNewMessage'
+            && !$update['message']['out'] && isset($update['message']['user_id'])) {
+            $result = BotEventHandler::sendDTMF($update['message'], $update['message']['message']);
+            if($result){
+                // Это успешная отправка DTMF.
+                // Очистим сообщение - примем ввод.
+                yield $this->messages->deleteMessages(['revoke' => true, 'id' => [$update['message']["id"]]]);
+            }
         }
     }
 

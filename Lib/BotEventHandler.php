@@ -110,6 +110,11 @@ class BotEventHandler extends EventHandler
         return $this->translates[$key]??$key;
     }
 
+    /**
+     * Метод вызывается каждую секунду.
+     * Для поддержания сессии вызываем getDialogs.
+     * @return \Generator|void
+     */
     public function onLoop(){
         $this->loopCount ++;
         if($this->loopCount < $this->maxCountLoop){
@@ -122,24 +127,6 @@ class BotEventHandler extends EventHandler
             $this->maxCountLoop = 60;
         }
         yield $this->getDialogs();
-    }
-
-    /**
-     * Handle updates from users.
-     *
-     * @param array $update Update
-     *
-     */
-    public function onUpdateNewMessage(array $update):void
-    {
-        if($this->getAPI()->getSelf()['bot'] === false){
-            // Автоответ должен работать только для сообщений, отправленных боту.
-            return;
-        }
-        if ($update['message']['_'] !== 'updateNewMessage' || $update['message']['out'] ?? false) {
-            // Пустое сообщение.
-            return;
-        }
     }
 
     /**
@@ -166,8 +153,8 @@ class BotEventHandler extends EventHandler
             if(strpos($bytes, 'callback') !== false){
                 $qData = explode(':',$bytes);
                 $this->startCallback($qData[1]??'', $qData[2]??'');
-            }elseif(is_numeric($bytes)){
-                $this->sendDTMF($update, $bytes);
+            }else{
+                self::sendDTMF($update, $bytes);
             }
         }
     }
@@ -208,12 +195,13 @@ class BotEventHandler extends EventHandler
     /**
      * Отправка через AMI dtmf
      * @param $update
-     * @return void
+     * @param $bytes
+     * @return bool
      */
-    private function sendDTMF($update, $bytes):void
+    public static function sendDTMF($update, $bytes):bool
     {
-        if(empty($bytes)){
-            return;
+        if(empty($bytes) && is_numeric($bytes)){
+            return false;
         }
         $user         = $update['user_id'];
         $cacheAdapter = AmiActions::cacheAdapter();
@@ -225,6 +213,7 @@ class BotEventHandler extends EventHandler
         if($cache && !empty($cache->channel)){
             AmiActions::SendDtmf($cache->channel, $bytes);
         }
+        return ($cache !== false);
     }
 
     /**
