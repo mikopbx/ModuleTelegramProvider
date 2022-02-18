@@ -242,7 +242,7 @@ class BotEventHandler extends EventHandler
             ]
         ];
 
-        $message = (empty($this->businessCardText))?$this->translate('К сожалению мы до Вас не дозвонились. Заказать обратный звонок можно по кнопке ниже'):$this->businessCardText;
+        $message = (empty($this->businessCardText))?$this->translate('MessageNoAnswer'):$this->businessCardText;
         return [
             'query_id' => $update['query_id'],
             'results' => [

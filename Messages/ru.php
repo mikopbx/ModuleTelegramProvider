@@ -72,7 +72,7 @@ return [
     "Enter the employee's internal number"          => 'Введите внутренний номер абонента',
     'Internal number entry form'                    => 'Форма ввода добавочного номера',
     'Ordering a callback'                           => 'Заказ обратного звонка',
-    'Unfortunately, we have not reached you. You can order a callback using the button below' => 'К сожалению мы до Вас не дозвонились. Заказать обратный звонок можно по кнопке ниже',
+    'MessageNoAnswer' => 'К сожалению мы до Вас не дозвонились. Заказать обратный звонок можно по кнопке ниже',
     'request a call back'                           => 'Перезвонить',
 
     'Identifiers' => 'Идентификаторы',
