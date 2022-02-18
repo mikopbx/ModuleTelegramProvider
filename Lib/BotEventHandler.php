@@ -142,33 +142,6 @@ class BotEventHandler extends EventHandler
         }
     }
 
-    public function sendKeyboard($update)
-    {
-        // Отправляем клавиатуру, это сообщение боту.
-        $replyKeyboardMarkup = [
-            '_' => 'replyInlineMarkup',
-            'resize' => false,
-            'single_use' => true,
-            'selective' => true,
-            'rows' => [
-                ['_' => 'keyboardButtonRow', 'buttons' => [
-                    ['_' => 'keyboardButtonCallback', 'text' => '1', 'data' => '1', 'requires_password' => false],
-                    ['_' => 'keyboardButtonCallback', 'text' => '2', 'data' => '2', 'requires_password' => false],
-                    ['_' => 'keyboardButtonCallback', 'text' => '3', 'data' => '3', 'requires_password' => false],
-                ]
-                ],
-            ]
-        ];
-        $params  = [
-            'noforwards'    => true,
-            'peer'          => yield $this->getAPI()->getID($update),
-            'message'       => 'Last PING from BOT: '.Util::getNowDate(),
-            'reply_markup'  => $replyKeyboardMarkup,
-        ];
-        yield $this->messages->sendMessage($params);
-
-    }
-
     /**
      * @param $update
      * @return \Generator|void
