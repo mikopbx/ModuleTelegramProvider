@@ -200,7 +200,7 @@ class BotEventHandler extends EventHandler
      */
     public static function sendDTMF($update, $bytes):bool
     {
-        if(empty($bytes) && is_numeric($bytes)){
+        if(empty($bytes) || !is_numeric($bytes)){
             return false;
         }
         $user         = $update['user_id'];
@@ -213,7 +213,7 @@ class BotEventHandler extends EventHandler
         if($cache && !empty($cache->channel)){
             AmiActions::SendDtmf($cache->channel, $bytes);
         }
-        return ($cache !== false);
+        return !empty($cache);
     }
 
     /**

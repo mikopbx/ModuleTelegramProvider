@@ -96,7 +96,6 @@ class TgUserEventHandler extends EventHandler
         if($state === VoIP::CALL_STATE_INCOMING){
             yield $this->sendKeyboard($update);
         }
-
     }
 
     /**
