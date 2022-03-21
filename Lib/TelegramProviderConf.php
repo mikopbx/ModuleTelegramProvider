@@ -305,7 +305,8 @@ class TelegramProviderConf extends ConfigClass
         $rmPath    = Util::which('rm');
         $timePath  = Util::which('timeout');
 
-        $result_code = 1*shell_exec("cd {$workdir}; $timePath -s SIGSYS 1 {$command}; echo \$?");
+        $result_code = shell_exec("cd {$workdir}; $timePath -s SIGSYS 1 {$command}; echo \$?");
+        $result_code = is_numeric($result_code)?1*$result_code:-1;
         if($result_code !==0 && $result_code !== 159){
             // 159 - Bad system call, так sip2tg реагирует на сигнал SIGSYS.
             // 0 - возвращается не регулярно при отправке SIGTERM, потому не используем его.
