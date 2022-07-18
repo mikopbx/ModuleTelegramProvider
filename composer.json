@@ -1,0 +1,43 @@
+{
+    "name": "mikopbx/module-telegram-provider",
+    "description": "ModuleTelegramProvider",
+    "require": {
+        "danog/madelineproto": "^7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\ModuleTelegramProvider\\": "/"
+        }
+    },
+    "type": "application",
+    "license": "GPL-3.0-or-later",
+    "homepage": "https://github.com/mikopbx/ModuleTelegramProvider",
+    "support": {
+        "email": "help@mikopbx.com",
+        "wiki": "https://wiki.mikopbx.com",
+        "issues": "https://github.com/mikopbx/Core/issues",
+        "source": "https://github.com/mikopbx/Core",
+        "forum": "https://qa.askozia.ru",
+        "chat": "https://t.me/mikopbx_dev"
+    },
+    "authors": [
+        {
+            "name": "Alexey Portnov",
+            "email": "apor@miko.ru",
+            "homepage": "https://www.facebook.com/PortnovAlexey",
+            "role": "Developer"
+        },
+        {
+            "name": "Nikolay Beketov",
+            "email": "nbek@miko.ru",
+            "homepage": "http://facebook.com/jorikfon",
+            "role": "Developer"
+        }
+    ],
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "7.4.6"
+        }
+    }
+}
