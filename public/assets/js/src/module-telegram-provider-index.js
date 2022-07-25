@@ -63,7 +63,16 @@ const ModuleTelegramProvider = {
 		window[className].$dropDowns.dropdown();
 		window.addEventListener('ModuleStatusChanged', window[className].checkStatusToggle);
 		window[className].initializeForm();
-		$('.menu .item').tab();
+		$('.menu .item').tab({
+			'onVisible': (tab) => {
+				let el = $("#step3");
+				if(tab === 'first'){
+					el.show();
+				}else{
+					el.hide();
+				}
+			}
+		});
 
 		$.get( idUrl + '/getTablesDescription', function( result ) {
 			for (let key in result['data']) {

@@ -33,6 +33,7 @@ class ModuleTelegramProviderForm extends Form
 
         $this->add(new TextArea('businessCardText', ['rows' => 2]));
         $this->add(new TextArea('keyboardText', ['rows' => 2]));
+        $this->add(new TextArea('autoAnswerText', ['rows' => 2]));
 
         $queues = new Select('callbackQueue', $options['queues'], [
             'using'    => [
