@@ -61,6 +61,12 @@ class ModuleTelegramProvider extends ModulesModelsBase
      *
      * @Column(type="string", nullable=true)
      */
+    public $autoAnswerText = '';
+
+    /**
+     *
+     * @Column(type="string", nullable=true)
+     */
     public $callbackQueue = '';
 
     /**

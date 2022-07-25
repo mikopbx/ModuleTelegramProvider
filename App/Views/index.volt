@@ -49,6 +49,16 @@
         <div class="ten wide field">
             {{ form.render('keyboardText') }}
         </div>
+
+        <h4 class="ui grey header">
+            {{ t._("autoAnswerText") }}
+             <div class="sub header">
+                {{ t._("autoAnswerTextSubText") }}
+             </div>
+        </h4>
+        <div class="ten wide field">
+            {{ form.render('autoAnswerText') }}
+        </div>
     </div>
     <div class="ui bottom attached tab" data-tab="callback">
         <h4 class="ui grey header">
@@ -66,7 +76,7 @@
     <br>
     <br>
 </form>
-<div class="ui segment">
+<div class="ui segment" id="step3">
     <h4 class="ui grey header">
         {{ t._("module_telegram_providerStep3") }}
         <div class="sub header">{{ t._("module_telegram_providerStep3Title") }} </div>

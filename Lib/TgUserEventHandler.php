@@ -35,6 +35,7 @@ class TgUserEventHandler extends EventHandler
     private array   $activeCalls= [];
     private int     $botId = 0;
     private int     $myId  = 0;
+    private string  $autoAnswerText = '';
 
     /**
      * Инициализация.
@@ -51,7 +52,9 @@ class TgUserEventHandler extends EventHandler
         foreach ($settings as $setting){
             if(!empty($setting->botId)){
                 $this->botId = $setting->botId;
-                break;
+            }
+            if (!empty($setting->autoAnswerText)){
+                $this->autoAnswerText = $setting->autoAnswerText;
             }
         }
     }
@@ -198,11 +201,17 @@ class TgUserEventHandler extends EventHandler
         yield $this->onAny($update);
         if ($update['message']['_'] !== 'updateNewMessage'
             && !$update['message']['out'] && isset($update['message']['user_id'])) {
-            $result = BotEventHandler::sendDTMF($update['message'], $update['message']['message']);
-            if($result){
-                // Это успешная отправка DTMF.
-                // Очистим сообщение - примем ввод.
-                yield $this->messages->deleteMessages(['revoke' => true, 'id' => [$update['message']["id"]]]);
+
+            if(is_numeric($update['message']['message'])){
+                $result = BotEventHandler::sendDTMF($update['message'], $update['message']['message']);
+                if($result){
+                    // Это успешная отправка DTMF.
+                    // Очистим сообщение - примем ввод.
+                    yield $this->messages->deleteMessages(['revoke' => true, 'id' => [$update['message']["id"]]]);
+                }
+            }elseif(!empty($this->autoAnswerText)){
+                // Отправим сообщение автоответчика.
+                yield $this->messages->sendMessage(['peer' => $update['message']['user_id'],'message' => $this->autoAnswerText]);
             }
         }
     }
