@@ -36,6 +36,7 @@ class TgUserEventHandler extends EventHandler
     private int     $botId = 0;
     private int     $myId  = 0;
     private string  $autoAnswerText = '';
+    private array   $lastMsg = [];
 
     /**
      * Инициализация.
@@ -210,8 +211,18 @@ class TgUserEventHandler extends EventHandler
                     yield $this->messages->deleteMessages(['revoke' => true, 'id' => [$update['message']["id"]]]);
                 }
             }elseif(!empty($this->autoAnswerText)){
-                // Отправим сообщение автоответчика.
-                yield $this->messages->sendMessage(['peer' => $update['message']['user_id'],'message' => $this->autoAnswerText]);
+                $lastTime = $this->lastMsg[$update['message']['user_id']]??0;
+                if((time() - $lastTime) > 30){
+                    // Отправим сообщение автоответчика.
+                    // Не чаще, чем раз в 30 секунд.
+                    yield $this->messages->sendMessage(['peer' => $update['message']['user_id'],'message' => $this->autoAnswerText]);
+                    $this->lastMsg[$update['message']['user_id']] = time();
+                }
+                foreach ($this->lastMsg as $userId => $time){
+                    if((time() - $lastTime) > 30){
+                        unset($this->lastMsg[$userId]);
+                    }
+                }
             }
         }
     }
