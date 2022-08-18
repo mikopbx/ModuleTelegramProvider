@@ -92,8 +92,8 @@ const ModuleTelegramProvider = {
 				let uriButton 		= $('#'+className+'-table tr[id='+id+'] button.ui.button');
 				let elements = {
 					'gw': $('#'+className+'-table tr[id='+id+'] a[data-name="login-gw"] i'),
-					'user': $('#'+className+'-table tr[id='+id+'] a[data-name="login-user"] i'),
-					'bot': $('#'+className+'-table tr[id='+id+'] a[data-name="login-bot"] i')
+					// 'user': $('#'+className+'-table tr[id='+id+'] a[data-name="login-user"] i'),
+					// 'bot': $('#'+className+'-table tr[id='+id+'] a[data-name="login-bot"] i')
 				};
 				for (let keyElement in elements) {
 					let elButton  = elements[keyElement];
@@ -287,8 +287,8 @@ const ModuleTelegramProvider = {
 						let templateDeleteButton = '<div class="ui small basic icon buttons action-buttons">' +
 							'<button data-name="uri-button" class="ui button clipboard disability" data-tooltip="'+globalTranslate.module_telegram_providerCopy+'"  data-position="left center" data-clipboard-text="'+uri+'" style="display: none;">sip:'+uri+'</button>'+
 							'<a data-name="login-gw"  href="" class="ui button popuped"><i class="icon telegram"></i></a>'+
-							'<a data-name="login-user"  href="" class="ui button popuped"><i class="icon envelope"></i></a>'+
-							'<a data-name="login-bot"  href="" class="ui button popuped"><i class="icon android secret"></i></a>'+
+							//'<a data-name="login-user"  href="" class="ui button popuped"><i class="icon envelope"></i></a>'+
+							//'<a data-name="login-bot"  href="" class="ui button popuped"><i class="icon android secret"></i></a>'+
 							'<a data-name="delete-button" href="' + window[className].deleteRecordAJAXUrl + '/' +
 							data.DT_RowId + '" data-value = "' + data.DT_RowId + '"' +
 							' class="ui button delete two-steps-delete popuped" data-tooltip="'+globalTranslate.module_telegram_provider_action_remove+'" data-content="' + globalTranslate.bt_ToolTipDelete + '">' +

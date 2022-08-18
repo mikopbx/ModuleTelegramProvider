@@ -76,6 +76,7 @@ return [
     'request a call back'                           => 'Перезвонить',
 
     'Identifiers' => 'Идентификаторы',
+    'module_telegram_provider_bot_token' => 'Token бота',
     'MessageTemplates' => 'Шаблоны сообщений',
     'CallbackText' => 'Обратный звонок',
     'businessCardText' => 'Текст визитки',

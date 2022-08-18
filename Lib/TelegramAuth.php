@@ -21,12 +21,17 @@ namespace Modules\ModuleTelegramProvider\Lib;
 
 use danog\MadelineProto\Logger as MadelineProtoLogger;
 use danog\MadelineProto\Settings;
+use MikoPBX\Common\Models\CallQueues;
+use MikoPBX\Common\Models\OutgoingRoutingTable;
+use MikoPBX\Common\Models\PbxSettings;
+use MikoPBX\Common\Models\Sip;
 use MikoPBX\Core\System\Processes;
 use MikoPBX\Core\System\System;
 use MikoPBX\Core\System\Util;
 use MikoPBX\Core\Workers\WorkerBase;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
 use danog\MadelineProto\API;
+use Phalcon\Mvc\Model\Resultset;
 use Throwable;
 use JsonException;
 use danog\MadelineProto\Shutdown;
@@ -35,7 +40,7 @@ class TelegramAuth extends WorkerBase
 {
     public const   AUTH_OBJECT_NAME       = 'auth.authorization';
     public const   BOT_SESSION_PATH       = 'db/madeline/bot/bot.madeline';
-    public const   PHONE_SESSION_TEMPLATE = 'db/madeline/$phone/session.madeline';
+    public const   PHONE_SESSION_TEMPLATE = 'db/keyboard/$phone';
 
     public const   TEXT_ENTER_PHONE = 'Enter phone number:';
     public const   TEXT_AUTH_OK     = 'Authorization OK';
@@ -43,7 +48,7 @@ class TelegramAuth extends WorkerBase
     private const  STDIN_NUM        = 0;
     private const  STDOUT_NUM       = 1;
     private const  STDERR_NUM       = 2;
-
+    private string $workKeyboardDir = '';
 
     private int    $id = 0;
     private        $proc;
@@ -68,6 +73,8 @@ class TelegramAuth extends WorkerBase
     private string $error = '';
     private string $workDir = '';
     private string $login   = '';
+    private array  $translates    = [];
+
 
     /**
      * Получение данных вывода приложение и ожидание ввода значения пользователем.
@@ -334,6 +341,76 @@ class TelegramAuth extends WorkerBase
         }
     }
 
+    public function makeSettingsKeyboardFile($numPhone):string
+    {
+        $resultFile = "";
+        $data = [];
+        $phone    = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $numPhone);
+        /** @var ModuleTelegramProvider $setting */
+        $setting = ModuleTelegramProvider::findFirst("phone_number='$phone'");
+        if($setting){
+            $providers = Sip::find("host='127.0.0.1'");
+            $providers->setHydrateMode(
+                Resultset::HYDRATE_OBJECTS
+            );
+            $idProviders = [];
+            /** @var Sip $provider */
+            foreach ($providers as $provider){
+                $idProviders[$provider->port] = $provider->uniqid;
+            }
+            $idRoutes = [];
+            $routes   = OutgoingRoutingTable::find();
+            $routes->setHydrateMode(
+                Resultset::HYDRATE_OBJECTS
+            );
+            /** @var OutgoingRoutingTable $route */
+            foreach ($routes as $route){
+                $idRoutes[$route->providerid] = $route->numberbeginswith;
+            }
+
+            $callbackQueue = $setting->callbackQueue;
+            /** @var CallQueues $queue */
+            $queues = CallQueues::find("id='$callbackQueue'");
+            $queues->setHydrateMode(
+                Resultset::HYDRATE_OBJECTS
+            );
+            foreach ($queues as $queue){
+                $data["QueueId"]  = $queue->uniqid;
+                $data["QueueNum"] = $queue->extension;
+            }
+            $data["PrefixExten"] = $idRoutes[$idProviders[30000 + $setting->id]??'']??'';
+            $data["PrefixVar"] = $idRoutes[$idProviders[30000 + $setting->id]??'']??'';
+            $data["DtmfText"]   = $setting->keyboardText;
+            $data["ApiId"]   = (int)$setting->api_id;
+            $data["ApiHash"] = $setting->api_hash;
+            $data["TgPhone"] = $phone;
+            $data["LogDir"]  = System::getLogDir()."/".basename(TelegramProviderConf::getModDir());
+            $data["LogFile"] = $data["LogDir"]."/tg-chats.log";
+            $data["AutoAnswerText"] = $setting->autoAnswerText;
+            $data["Token"]   = $setting->botId;
+            [$data["BotId"]] = explode(':', $setting->botId);
+            $data["BotId"]   = (int)$data["BotId"];
+            $data["LogLevel"] = 1;
+            $data["TdDir"] = $this->workKeyboardDir;
+            $data["AmiHost"] = '127.0.0.1';
+            $data["AmiPort"] = PbxSettings::getValueByKey('AMIPort');
+            $data["AmiLogin"] = 'phpagi';
+            $data["AmiPassword"] = 'phpagi';
+
+            $config = $this->getDI()->get('config');
+            $data["RedisAddres"]        = $config->redis->host.":".$config->redis->port;
+            $data["RedisDbIndex"]       = 3;
+            $data["CallbackButtonText"] = $this->translate('request a call back');
+            $data["CallbackTitle"]      = $this->translate('Ordering a callback');
+            $data["callbackText"]       = $setting->businessCardText;
+            $data["DtmfTitle"]          = $this->translate('Internal number entry form');
+            $data["RedisKeyPrefix"]     =  "tg_provider_";
+            $resultFile = "$this->workKeyboardDir/settings.conf";
+            file_put_contents($resultFile, json_encode($data, JSON_PRETTY_PRINT |JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        }
+
+        return $resultFile;
+    }
 
     /**
      * Запуск процесса авторизации.
@@ -347,8 +424,8 @@ class TelegramAuth extends WorkerBase
         $this->login = $params;
         $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
         $title      = 'gen_db_'.$numPhone;
-        $id = Processes::getPidOfProcess($title);
-        if(!empty($id)){
+        $pid = Processes::getPidOfProcess($title);
+        if(!empty($pid)){
             exit(2);
         }
         cli_set_process_title($title);
@@ -357,6 +434,12 @@ class TelegramAuth extends WorkerBase
         if(!file_exists($confFile)){
             exit(3);
         }
+
+        $confKeyboardFile = $this->makeSettingsKeyboardFile($numPhone);
+        if(!file_exists($confKeyboardFile)){
+            exit(4);
+        }
+
         // Чистим старые настройки.
         if(defined('TG_DRY_RUN')){
             $this->tgAuthTesting('Enter authentication code:');
@@ -391,9 +474,29 @@ class TelegramAuth extends WorkerBase
         if(!$settings){
             return;
         }
-        $this->moduleDir  = TelegramProviderConf::getModDir();
-        $this->workDir    = $this->moduleDir.'/db/'.$numPhone;
+        $this->moduleDir        = TelegramProviderConf::getModDir();
+        $this->workDir          = "$this->moduleDir/db/$numPhone";
+        $this->workKeyboardDir  = "$this->moduleDir/db/keyboard/$numPhone";
+        Util::mwMkdir($this->workKeyboardDir."/database");
         Util::mwMkdir($this->workDir, true);
+    }
+
+    /**
+     * Подключаем переводы.
+     * @param $key
+     * @return mixed
+     */
+    private function translate($key)
+    {
+        if(empty($this->translates)){
+            $language = PbxSettings::getValueByKey('WebAdminLanguage');
+            try {
+                $this->translates = include TelegramProviderConf::getModDir() . "/Messages/{$language}.php";
+            }catch (\Throwable $e){
+                Util::sysLogMsg(__CLASS__, $e->getMessage());
+            }
+        }
+        return $this->translates[$key]??$key;
     }
 
     /**
@@ -458,6 +561,9 @@ class TelegramAuth extends WorkerBase
             if($this->expectEnd[$output] === true){
                 $code   = 0;
                 $status = TelegramProviderConf::STATUS_DONE;
+                if(file_exists($this->workDir."/td.binlog")){
+                    copy($this->workDir."/td.binlog", $this->workKeyboardDir."/database/td.binlog");
+                }
             }else{
                 $code   = 5;
                 $status = TelegramProviderConf::STATUS_ERROR;

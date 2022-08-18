@@ -23,30 +23,36 @@ use MikoPBX\Core\System\Processes;
 use MikoPBX\Modules\PbxExtensionUtils;
 use Modules\ModuleTelegramProvider\Lib\TelegramProviderConf;
 
+function killByTittle($title):void
+{
+
+    $pid   = Processes::getPidOfProcess($title);
+    if(!empty($pid)){
+        // Останавливаем конкретный процесс.
+        shell_exec("kill $pid > /dev/null 2> /dev/null");
+        // Ожидаем завершения процессов.
+        $ch = 0;
+        do{
+            $ch++;
+            sleep(1);
+            $pid   = Processes::getPidOfProcess($title);
+        }while(!empty($pid) && $ch <= 15);
+    }
+
+}
+
 $tg = new TelegramProviderConf();
 $moduleEnabled  = PbxExtensionUtils::isEnabled('ModuleTelegramProvider');
 if($moduleEnabled === true){
     $action = $argv[1]??'';
     if($action === 'restart'){
         $id = trim($argv[2]??'');
-        $title = 'tg2sip';
-        if(!empty($id)){
-            $title.= " -$id-";
-        }
-        $pid   = Processes::getPidOfProcess($title);
-        if(!empty($pid)){
-            // Останавливаем конкретный процесс.
-            shell_exec("kill $pid");
-            // Ожидаем завершения процессов.
-            $ch = 0;
-            do{
-                $ch++;
-                sleep(1);
-                $pid   = Processes::getPidOfProcess($title);
-            }while(!empty($pid) && $ch <= 15);
-        }
+        killByTittle("tg2sip -$id-");
+        killByTittle("td-keyboard-id=$id-");
     }
+    $tg->startTdKeyboard();
     $tg->startSipTg();
 }else{
     $tg->stopSipTg();
+    $tg->stopTdKeyboard();
 }

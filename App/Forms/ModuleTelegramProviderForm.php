@@ -30,6 +30,7 @@ class ModuleTelegramProviderForm extends Form
         $this->add(new Text('phone_number'));
         $this->add(new Text('api_id'));
         $this->add(new Password('api_hash'));
+        $this->add(new Text('botId'));
 
         $this->add(new TextArea('businessCardText', ['rows' => 2]));
         $this->add(new TextArea('keyboardText', ['rows' => 2]));
