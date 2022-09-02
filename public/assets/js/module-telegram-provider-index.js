@@ -23,6 +23,7 @@ var ModuleTelegramProvider = {
   $statusToggle: $('#module-status-toggle'),
   $moduleStatus: $('#status'),
   authProcess: '',
+  waitingInput: false,
 
   /**
    * Field validation rules
@@ -92,9 +93,9 @@ var ModuleTelegramProvider = {
       for (var id in response.data) {
         var uriButton = $('#' + className + '-table tr[id=' + id + '] button.ui.button');
         var elements = {
-          'gw': $('#' + className + '-table tr[id=' + id + '] a[data-name="login-gw"] i') // 'user': $('#'+className+'-table tr[id='+id+'] a[data-name="login-user"] i'),
-          // 'bot': $('#'+className+'-table tr[id='+id+'] a[data-name="login-bot"] i')
-
+          'gw': $('#' + className + '-table tr[id=' + id + '] a[data-name="login-gw"] i'),
+          'user': $('#' + className + '-table tr[id=' + id + '] a[data-name="login-user"] i'),
+          'bot': $('#' + className + '-table tr[id=' + id + '] a[data-name="login-bot"] i')
         };
 
         for (var keyElement in elements) {
@@ -170,52 +171,63 @@ var ModuleTelegramProvider = {
     var elDimmer = $('#dimmer-wait-status');
     elDimmer.addClass('active');
     $.get('/pbxcore/api/modules/' + className + '/status?id=' + id, function (response) {
+      if (window[className].waitingInput === true) {
+        // Зупущено модальное окно ожидания ввода кода доступа.
+        return;
+      }
+
       if (response.result === false) {
         setTimeout(window[className].checkStatus, 5000, id);
         return;
       }
 
-      var statusData = response.data[window[className].authProcess];
+      var allEnd = true;
+      $.each(response.data, function (authProcess, statusData) {
+        if (statusData.status === 'Done') {//
+        } else if (statusData.status === 'WaitInput' && statusData.data.trim() === '') {
+          allEnd = false;
+          var translateStatus = globalTranslate[statusData.output];
 
-      if (statusData.status === 'Done') {
-        window[className].authProcess = '';
-        elDimmer.removeClass('active');
-      } else if (statusData.status === 'WaitInput' && statusData.data.trim() === '') {
-        var translateStatus = globalTranslate[statusData.output];
-
-        if (translateStatus === undefined) {
-          translateStatus = statusData.output;
-        }
-
-        $('#command-dialog form div.field label').text(translateStatus);
-        $('input[id=command]').val('');
-        var phone = $('#ModuleTelegramProvider-table tr[id=' + id + '] input[colname="phone_number"]').val();
-        $('#command-dialog a.ui.ribbon.label').text(phone);
-        $('#command-dialog').modal({
-          closable: false,
-          onDeny: function onDeny() {
-            $.get('/pbxcore/api/modules/' + className + '/cancel-auth?id=' + id);
-            elDimmer.removeClass('active');
-          },
-          onApprove: function onApprove() {
-            var elCommand = $('#command');
-            var command = elCommand.val();
-            elCommand.val('');
-            $.get('/pbxcore/api/modules/' + className + '/enter-command?id=' + id + '&command=' + command + '&key=' + window[className].authProcess, function (responseCmd) {
-              if (responseCmd.result === true) {
-                setTimeout(window[className].checkStatus, 1000, id);
-              }
-            });
+          if (translateStatus === undefined) {
+            translateStatus = statusData.output;
           }
-        }).modal('show');
-      } else if (statusData.status === 'Error') {
+
+          $('#command-dialog form div.field label').text(translateStatus);
+          $('input[id=command]').val('');
+          var phone = $('#ModuleTelegramProvider-table tr[id=' + id + '] input[colname="phone_number"]').val();
+          $('#command-dialog a.ui.ribbon.label').text(phone);
+          window[className].waitingInput = true;
+          $('#command-dialog').modal({
+            closable: false,
+            onDeny: function onDeny() {
+              $.get('/pbxcore/api/modules/' + className + '/cancel-auth?id=' + id);
+              window[className].waitingInput = false;
+            },
+            onApprove: function onApprove() {
+              var elCommand = $('#command');
+              var command = elCommand.val();
+              elCommand.val('');
+              $.get('/pbxcore/api/modules/' + className + '/enter-command?id=' + id + '&command=' + command + '&key=' + authProcess, function (responseCmd) {
+                if (responseCmd.result === true) {
+                  setTimeout(window[className].checkStatus, 3000, id);
+                }
+              });
+              window[className].waitingInput = false;
+            }
+          }).modal('show');
+        } else if (statusData.status === 'Error') {
+          $("#error-message").show();
+          $("#error-message .header").text(globalTranslate.module_telegram_providerError);
+          $("#error-message .body").text(statusData.output);
+        } else {
+          allEnd = false;
+          setTimeout(window[className].checkStatus, 2000, id);
+        }
+      });
+
+      if (allEnd === true) {
         window[className].authProcess = '';
-        $("#error-message").show();
-        $("#error-message .header").text(globalTranslate.module_telegram_providerError);
-        $("#error-message .body").text(statusData.output);
         elDimmer.removeClass('active');
-      } else {
-        setTimeout(window[className].checkStatus, 2000, id);
       }
     });
   },
@@ -303,9 +315,7 @@ var ModuleTelegramProvider = {
             cols.eq(index).html('<i class="ui ' + data[key] + ' circle icon"></i>');
           } else if (key === 'delButton') {
             var uri = '127.0.0.1:' + (30000 + 1 * data.DT_RowId);
-            var templateDeleteButton = '<div class="ui small basic icon buttons action-buttons">' + '<button data-name="uri-button" class="ui button clipboard disability" data-tooltip="' + globalTranslate.module_telegram_providerCopy + '"  data-position="left center" data-clipboard-text="' + uri + '" style="display: none;">sip:' + uri + '</button>' + '<a data-name="login-gw"  href="" class="ui button popuped"><i class="icon telegram"></i></a>' + //'<a data-name="login-user"  href="" class="ui button popuped"><i class="icon envelope"></i></a>'+
-            //'<a data-name="login-bot"  href="" class="ui button popuped"><i class="icon android secret"></i></a>'+
-            '<a data-name="delete-button" href="' + window[className].deleteRecordAJAXUrl + '/' + data.DT_RowId + '" data-value = "' + data.DT_RowId + '"' + ' class="ui button delete two-steps-delete popuped" data-tooltip="' + globalTranslate.module_telegram_provider_action_remove + '" data-content="' + globalTranslate.bt_ToolTipDelete + '">' + '<i class="icon trash red"></i></a></div>';
+            var templateDeleteButton = '<div class="ui small basic icon buttons action-buttons">' + '<button data-name="uri-button" class="ui button clipboard disability" data-tooltip="' + globalTranslate.module_telegram_providerCopy + '"  data-position="left center" data-clipboard-text="' + uri + '" style="display: none;">sip:' + uri + '</button>' + '<a data-name="login-gw"  href="" class="ui button popuped"><i class="icon telegram"></i></a>' + '<a data-name="login-user"  href="" class="ui button popuped"><i class="icon envelope"></i></a>' + '<a data-name="login-bot"  href="" class="ui button popuped"><i class="icon android secret"></i></a>' + '<a data-name="delete-button" href="' + window[className].deleteRecordAJAXUrl + '/' + data.DT_RowId + '" data-value = "' + data.DT_RowId + '"' + ' class="ui button delete two-steps-delete popuped" data-tooltip="' + globalTranslate.module_telegram_provider_action_remove + '" data-content="' + globalTranslate.bt_ToolTipDelete + '">' + '<i class="icon trash red"></i></a></div>';
             cols.eq(index).html(templateDeleteButton);
             cols.eq(index).addClass('right aligned');
           } else if (key === 'priority') {
@@ -529,6 +539,11 @@ var ModuleTelegramProvider = {
         }
       }
     });
+
+    if (tableName === 'ModuleTelegramProvider') {
+      var phone = $("#" + tableName + "-table tr[id=" + id + "] input[colname=phone_number]").val();
+      $.get('/pbxcore/api/modules/' + className + '/logout?id=' + id + '&phone=' + phone);
+    }
   },
 
   /**

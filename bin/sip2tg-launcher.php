@@ -25,7 +25,6 @@ use Modules\ModuleTelegramProvider\Lib\TelegramProviderConf;
 
 function killByTittle($title):void
 {
-
     $pid   = Processes::getPidOfProcess($title);
     if(!empty($pid)){
         // Останавливаем конкретный процесс.
@@ -47,11 +46,12 @@ if($moduleEnabled === true){
     $action = $argv[1]??'';
     if($action === 'restart'){
         $id = trim($argv[2]??'');
-        killByTittle("tg2sip -$id-");
-        killByTittle("td-keyboard-id=$id-");
+        TelegramProviderConf::killByTittle("tg2sip -$id-");
+        TelegramProviderConf::killByTittle("td-keyboard=$id-");
+        TelegramProviderConf::killByTittle("td-keyboard=bot-");
     }
-    $tg->startTdKeyboard();
     $tg->startSipTg();
+    $tg->startTdKeyboard();
 }else{
     $tg->stopSipTg();
     $tg->stopTdKeyboard();

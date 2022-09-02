@@ -48,6 +48,9 @@ return [
     'module_telegram_providerUpdateStatus'          => 'Обновление статуса',
     'module_telegram_providerWaitAuth'              => 'Ожидание результата авторизации...',
 
+    'module_telegram_provider_gw'                   => 'Шлюз Telegram <-> SIP',
+    'module_telegram_provider_user'                 => 'Telegram клиент',
+
     'module_telegram_provider_status_gw_OK'         => 'Шлюз Telegram <-> SIP: Подключен. Нажмите, для повторной авторизации',
     'module_telegram_provider_status_gw_WAIT_START' => 'Шлюз Telegram <-> SIP: Запускается. Нажмите, для повторной авторизации',
     'module_telegram_provider_status_gw_FAIL'       => 'Шлюз Telegram <-> SIP: Не авторизован',

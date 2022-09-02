@@ -65,12 +65,52 @@ class TelegramProviderConf extends ConfigClass
             $res = $this->getStatus($request['data']['id']??'');
         }elseif($action === 'STATUSES'){
             $res = $this->getStatuses();
+        }elseif($action === 'LOGOUT'){
+            $res = $this->logout($request['data']['id']??'', $request['data']['phone']??'');
         }elseif($action === 'START-AUTH'){
             $res = $this->startAuth($request['data']['id']??'', $request['data']['type']??'');
         }elseif($action === 'ENTER-COMMAND'){
             $res = $this->enterCommand($request['data']['id']??'', $request['data']['command']??'', $request['data']['key']??'');
         }
         return $res;
+    }
+
+    private function logout(string $id, string $phone):PBXApiResult
+    {
+        $res = new PBXApiResult();
+        self::killByTittle("tg2sip -$id-", true);
+        self::killByTittle("td-keyboard=$id-", true);
+        $numPhone   = preg_replace(self::RGX_DIGIT_ONLY, '', $phone);
+        if(!empty($numPhone)){
+            $rmPath = Util::which('rm');
+            shell_exec("$rmPath -rf '$this->moduleDir/db/$numPhone' '$this->moduleDir/db/keyboard/$numPhone'");
+        }
+        if(!file_exists("$this->moduleDir/db/$numPhone")
+           && !file_exists("$this->moduleDir/db/keyboard/$numPhone")){
+            $res->success = true;
+        }
+        return $res;
+    }
+
+    public static function killByTittle($title, bool $force = false):void
+    {
+        $pid   = Processes::getPidOfProcess($title);
+        if(!empty($pid)){
+            $options = '';
+            if($force){
+                $options = '-9';
+            }
+            // Останавливаем конкретный процесс.
+            shell_exec("kill $options $pid > /dev/null 2> /dev/null");
+            // Ожидаем завершения процессов.
+            $ch = 0;
+            do{
+                $ch++;
+                sleep(1);
+                $pid   = Processes::getPidOfProcess($title);
+            }while(!empty($pid) && $ch <= 15);
+        }
+
     }
 
     /**
@@ -84,17 +124,26 @@ class TelegramProviderConf extends ConfigClass
     public function enterCommand($id, $command, $key):PBXApiResult
     {
         $res = new PBXApiResult();
+        $isFail = false;
         if(empty($id)){
-            return $res;
+            $isFail = true;
         }
         $settings = ModuleTelegramProvider::findFirst($id);
         if(!$settings){
-            return $res;
+            $isFail = true;
         }
         $phone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
         $workDir = $this->moduleDir.'/db/'.$phone;
+        if($key === 'user'){
+            $workDir = $this->moduleDir.'/db/keyboard/'.$phone;
+        }elseif($key !== 'gw'){
+            $isFail = true;
+        }
+        if($isFail){
+            return $res;
+        }
         $statusFile = "$workDir/".TelegramProviderConf::STATUS_FILE_NAME;
-        $query      =  json_decode(file_get_contents($statusFile), true);
+        $query      = json_decode(file_get_contents($statusFile), true, 512, JSON_THROW_ON_ERROR);
         if($query['status']??'' === self::STATUS_WAIT_INPUT){
             $query['data'] = $command;
             file_put_contents($statusFile, json_encode($query));
@@ -160,13 +209,13 @@ class TelegramProviderConf extends ConfigClass
         $phone      = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
         $statusPath = [
             'gw'    => $this->moduleDir.'/db/'.$phone.'/'.self::STATUS_FILE_NAME,
-            'user'  => '',
-            'bot'   => ''
+            'user'  => $this->moduleDir.'/'.str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE).'/'.self::STATUS_FILE_NAME,
+            'bot'   => $this->moduleDir.'/'.str_replace('$phone', 'bot', TelegramAuth::PHONE_SESSION_TEMPLATE).'/'.self::STATUS_FILE_NAME
         ];
         $res->success = true;
         foreach ($statusPath as $key => $statusFile){
             if(file_exists($statusFile)){
-                $res->data[$key] = json_decode(file_get_contents($statusFile), true);
+                $res->data[$key] = json_decode(file_get_contents($statusFile), true, 512, JSON_THROW_ON_ERROR);
             }else{
                 $res->data[$key] = [];
             }
@@ -185,13 +234,17 @@ class TelegramProviderConf extends ConfigClass
         $data->setHydrateMode(
             Resultset::HYDRATE_OBJECTS
         );
+
+        $pidBot = Processes::getPidOfProcess("td-keyboard=bot");
         foreach ($data as $settings) {
             $pid    = Processes::getPidOfProcess("tg2sip -$settings->id-");
+            $pidUser= Processes::getPidOfProcess("td-keyboard=$settings->id-");
+
             $statusAuth = $this->getStatus($settings->id);
             $statuses   = [
                 'gw'     => (empty($pid))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
-                'user'   => self::LINE_STATUS_OK,
-                'bot'    => self::LINE_STATUS_OK,
+                'user'   => (empty($pidUser))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
+                'bot'    => (empty($pidBot))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
             ];
             foreach ($statusAuth->data as $key => $stateData){
                 if($stateData['status'] !== self::STATUS_DONE){
@@ -240,28 +293,29 @@ class TelegramProviderConf extends ConfigClass
         $data->setHydrateMode(
             Resultset::HYDRATE_OBJECTS
         );
+
+        // Запуск бота отдельным процессом.
+        $idBot = "td-keyboard=bot-";
+        $pid = Processes::getPidOfProcess($idBot);
+        $botConf = "$this->moduleDir/db/keyboard/bot/settings.conf";
+        if(empty($pid) && file_exists($botConf)){
+            $program = "$this->moduleDir/bin/td-keyboard -c=$botConf $idBot";
+            Processes::mwExecBg($program);
+        }
         foreach ($data as $settings){
             $numPhone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
-            $idTask = "td-keyboard-id=$settings->id--";
+            // Запуск телеграмм клиент.
+            $idTask = "td-keyboard=$settings->id-";
             $pid = Processes::getPidOfProcess($idTask);
             if(!empty($pid)){
                 continue;
             }
-            $mvPath = Util::which('mv');
-            $rmPath = Util::which('rm');
-            $cmd = [
-                "$mvPath $this->moduleDir/db/keyboard/$numPhone/database/td.binlog $this->moduleDir/db/keyboard/$numPhone/td_$numPhone.binlog",
-                "$rmPath -rf $this->moduleDir/db/keyboard/$numPhone/database/*",
-                "$mvPath $this->moduleDir/db/keyboard/$numPhone/td_$numPhone.binlog $this->moduleDir/db/keyboard/$numPhone/database/td.binlog"
-            ];
-            Processes::mwExecCommands($cmd);
-            $program = "$this->moduleDir/bin/td-keyboard -c=$this->moduleDir/db/keyboard/$numPhone/settings.conf $idTask";
+            $program = "$this->moduleDir/bin/td-keyboard -u -c=$this->moduleDir/db/keyboard/$numPhone/settings.conf $idTask";
             Processes::mwExecBg($program);
         }
     }
 
-
-        /**
+    /**
      * Запуск загрузочного скрипта.
      * @param $id
      * @return void
@@ -286,8 +340,12 @@ class TelegramProviderConf extends ConfigClass
         $rmPath    = Util::which('rm');
         $timePath  = Util::which('timeout');
 
-        $result_code = trim(shell_exec("cd {$workdir}; $timePath -s SIGSYS 1 {$command}; echo \$?"));
+        $result_code = trim(shell_exec("cd {$workdir}; $timePath -s SIGSYS 3 {$command}; echo \$?"));
+        if(strpos($result_code, "TG client connected") !== false){
+            $result_code = '0';
+        }
         $result_code = is_numeric($result_code)?1*$result_code:-1;
+
         if($result_code !==0 && $result_code !== 159){
             // 159 - Bad system call, так sip2tg реагирует на сигнал SIGSYS.
             // 0 - возвращается не регулярно при отправке SIGTERM, потому не используем его.
@@ -318,6 +376,7 @@ class TelegramProviderConf extends ConfigClass
             shell_exec("killall tg2sip");
         }
     }
+
     /**
      * Остановка работы всех прокси.
      * @return void
