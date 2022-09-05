@@ -195,7 +195,8 @@ var ModuleTelegramProvider = {
           $('#command-dialog form div.field label').text(translateStatus);
           $('input[id=command]').val('');
           var phone = $('#ModuleTelegramProvider-table tr[id=' + id + '] input[colname="phone_number"]').val();
-          $('#command-dialog a.ui.ribbon.label').text(phone);
+          var title = globalTranslate["module_telegram_provider_" + window[className].authProcess] + " (".concat(phone, ")");
+          $('#command-dialog a.ui.ribbon.label').text(title);
           window[className].waitingInput = true;
           $('#command-dialog').modal({
             closable: false,
@@ -628,12 +629,16 @@ var ModuleTelegramProvider = {
    * Change some form elements classes depends of module status
    */
   checkStatusToggle: function checkStatusToggle() {
+    var step3 = $("#step3");
+
     if (window[className].$statusToggle.checkbox('is checked')) {
       window[className].$disabilityFields.removeClass('disabled');
+      step3.removeClass('disabled');
       window[className].$moduleStatus.show();
       setTimeout(window[className].checkStatuses, 10);
     } else {
       window[className].$disabilityFields.addClass('disabled');
+      step3.addClass('disabled');
       window[className].$moduleStatus.hide();
     }
   },
