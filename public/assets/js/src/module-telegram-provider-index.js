@@ -22,6 +22,7 @@ const ModuleTelegramProvider = {
 	$moduleStatus: $('#status'),
 	authProcess: '',
 	waitingInput: false,
+	statusesTimer: null,
 	/**
 	 * Field validation rules
 	 * https://semantic-ui.com/behaviors/form.html
@@ -127,7 +128,10 @@ const ModuleTelegramProvider = {
 			}else{
 				window[className].changeStatus('Connected');
 			}
-            setTimeout(window[className].checkStatusToggle, 10000);
+
+			if(window[className].statusesTimer !== 0){
+				setTimeout(window[className].checkStatusToggle, 10000);
+			}
         });
     },
 
@@ -137,6 +141,11 @@ const ModuleTelegramProvider = {
 	 * @param failAuth
 	 */
 	startAuth(id, failAuth) {
+		if(window[className].statusesTimer !== null){
+			// Останавливаем проверку статусов.
+			clearTimeout(window[className].statusesTimer);
+			window[className].statusesTimer = 0;
+		}
 		$("#error-message").hide();
 		$.get( '/pbxcore/api/modules/'+className+'/start-auth?id='+id+'&type='+window[className].authProcess, function( response ) {
 			if(response.result === false){
@@ -161,6 +170,7 @@ const ModuleTelegramProvider = {
 		let elDimmer = $('#dimmer-wait-status');
 		elDimmer.addClass('active');
 		$.get( '/pbxcore/api/modules/'+className+'/status?id='+id, function( response ) {
+			console.debug(response);
 			if(window[className].waitingInput === true){
 				// Зупущено модальное окно ожидания ввода кода доступа.
 				return;
@@ -219,6 +229,9 @@ const ModuleTelegramProvider = {
 			if(allEnd === true){
 				window[className].authProcess = '';
 				elDimmer.removeClass('active');
+				window[className].statusesTimer = null;
+				// Возобновляем проверку статусов линий.
+				window[className].checkStatusToggle();
 			}
 		});
 	},
@@ -595,7 +608,9 @@ const ModuleTelegramProvider = {
 			window[className].$disabilityFields.removeClass('disabled');
 			step3.removeClass('disabled');
 			window[className].$moduleStatus.show();
-			setTimeout(window[className].checkStatuses, 10);
+			if(window[className].statusesTimer === null){
+				window[className].statusesTimer = setTimeout(window[className].checkStatuses, 10000);
+			}
 		} else {
 			window[className].$disabilityFields.addClass('disabled');
 			step3.addClass('disabled');
