@@ -25,6 +25,10 @@
             <label class="ui grey header">{{ t._('module_telegram_provider_api_hash') }}</label>
             {{ form.render('api_hash') }}
         </div>
+        <div class="ten wide field">
+            <label class="ui grey header" >{{ t._('module_telegram_provider_bot_token') }}</label>
+            {{ form.render('botId') }}
+         </div>
         <h4 class="ui grey header">
             {{ t._("module_telegram_providerStep2") }}
             <div class="sub header">{{ t._("module_telegram_providerStep2Title") }} </div>

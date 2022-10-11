@@ -83,9 +83,9 @@ class ModuleTelegramProvider extends ModulesModelsBase
 
     /**
      *
-     * @Column(type="integer", nullable=true)
+     * @Column(type="string", nullable=true)
      */
-    public $botId = '0';
+    public $botId = '';
 
     /**
      * Returns dynamic relations between module models and common models

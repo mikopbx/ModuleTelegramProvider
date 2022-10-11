@@ -2,3 +2,4 @@
 /bin/tg2sip
 /vendor/
 /composer.lock
+/td-keyboard/settings.conf

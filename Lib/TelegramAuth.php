@@ -19,23 +19,22 @@
 
 namespace Modules\ModuleTelegramProvider\Lib;
 
-use danog\MadelineProto\Logger as MadelineProtoLogger;
-use danog\MadelineProto\Settings;
+use MikoPBX\Common\Models\CallQueues;
+use MikoPBX\Common\Models\OutgoingRoutingTable;
+use MikoPBX\Common\Models\PbxSettings;
+use MikoPBX\Common\Models\Sip;
 use MikoPBX\Core\System\Processes;
 use MikoPBX\Core\System\System;
 use MikoPBX\Core\System\Util;
 use MikoPBX\Core\Workers\WorkerBase;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
-use danog\MadelineProto\API;
+use Phalcon\Mvc\Model\Resultset;
 use Throwable;
 use JsonException;
-use danog\MadelineProto\Shutdown;
 
 class TelegramAuth extends WorkerBase
 {
-    public const   AUTH_OBJECT_NAME       = 'auth.authorization';
-    public const   BOT_SESSION_PATH       = 'db/madeline/bot/bot.madeline';
-    public const   PHONE_SESSION_TEMPLATE = 'db/madeline/$phone/session.madeline';
+    public const   PHONE_SESSION_TEMPLATE = 'db/keyboard/$phone';
 
     public const   TEXT_ENTER_PHONE = 'Enter phone number:';
     public const   TEXT_AUTH_OK     = 'Authorization OK';
@@ -43,6 +42,9 @@ class TelegramAuth extends WorkerBase
     private const  STDIN_NUM        = 0;
     private const  STDOUT_NUM       = 1;
     private const  STDERR_NUM       = 2;
+    private string $workKeyboardDir = '';
+    private string $workBotDir = '';
+    private string $workDir = '';
 
 
     private int    $id = 0;
@@ -62,12 +64,16 @@ class TelegramAuth extends WorkerBase
         'Enter authentication password:'             => false,
         'Enter your first name:'                     => false,
         'Enter your last name:'                      => false,
+        // go-tdlib
+        'Enter code:'                                => 'Enter authentication code:',
+        'Enter password:'                            => 'Enter authentication password:',
     ];
     private int    $readTimeout = 2;
     private int    $absTimeout  = 120;
     private string $error = '';
-    private string $workDir = '';
     private string $login   = '';
+    private array  $translates    = [];
+
 
     /**
      * Получение данных вывода приложение и ожидание ввода значения пользователем.
@@ -76,10 +82,15 @@ class TelegramAuth extends WorkerBase
      */
     private function invokeAction($action):bool
     {
+        if(empty($action)){
+            return true;
+        }
         $res = true;
         if(!array_key_exists($action, $this->expectActions)){
             $res = false;
             $this->error = 'Unknown command received: '.$action;
+        }elseif($this->expectActions[$action] !== false){
+            $action = $this->expectActions[$action];
         }
         if(self::TEXT_ENTER_PHONE === $action){
             $enteredText = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $this->login);
@@ -90,129 +101,15 @@ class TelegramAuth extends WorkerBase
             $this->writeCommand($enteredText.PHP_EOL);
         }
         $output = $this->readOutput(true);
-        $this->checkOutput($output);
-
-        $this->error = str_replace('Error: error ','',$output);
-        if(!empty($this->error)){
-            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $this->error);
-            $res = false;
+        $done   = $this->checkOutput($output);
+        if(!$done){
+            $this->error = str_replace('Error: error ','',$output);
+            if(!empty($this->error)){
+                $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $this->error);
+                $res = false;
+            }
         }
         return $res;
-    }
-
-    /**
-     * Авторизация клиента телеграм и бота телеграм.
-     * @param      $params
-     * @return void
-     */
-    public function messengerLogin($params):void
-    {
-        if(empty($params)){
-            return;
-        }
-        $phone          = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
-        $sessionPath    = TelegramProviderConf::getModDir().'/'.str_replace( '$phone', $phone, self::PHONE_SESSION_TEMPLATE);
-        $madeLineDir    = dirname($sessionPath);
-        $this->workDir  = $madeLineDir;
-
-        if(defined('TG_DRY_RUN')){
-            $this->tgAuthTesting('messengerGetPhoneCode');
-            return;
-        }
-        Util::mwMkdir($madeLineDir, true);
-        if(!file_exists($madeLineDir)){
-            return;
-        }
-        $pid = Processes::getPidOfProcess(basename($sessionPath));
-        if(!empty($pid)){
-            // Удаляем процессы сессии.
-            $killPath = Util::which('kill');
-            shell_exec("$killPath $pid");
-        }
-        // Чистим предудыщие сессии.
-        shell_exec(Util::which('rm')." -rf $madeLineDir/*");
-
-        $settings       = self::messengerInitSettings();
-        $MadelineProto  = new API($sessionPath, $settings);
-        Shutdown::addCallback(static function () use ($MadelineProto) {
-            $MadelineProto->__destruct();
-        });
-        $MadelineProto->async(false);
-
-        $MadelineProto->phoneLogin($phone);
-        $authorization = $MadelineProto->completePhoneLogin($this->getInputData('messengerGetPhoneCode'));
-        if ($authorization['_'] === 'account.password') {
-            $authorization = $MadelineProto->complete2falogin($this->getInputData('Enter authentication password:'));
-        }
-        if ($authorization['_'] === 'account.needSignup') {
-            $firstName = $this->getInputData('Enter your first name:');
-            $lastName  = $this->getInputData('Enter your last name:');
-            $MadelineProto->completeSignup($firstName, $lastName);
-        }
-        if($authorization['_'] === self::AUTH_OBJECT_NAME && isset($authorization['user']['phone'])){
-            $this->updateStatus(TelegramProviderConf::STATUS_DONE, '');
-        }else{
-            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $authorization);
-        }
-        $MadelineProto->__destruct();
-    }
-
-    /**
-     Создание сессии бота.
-     * @return void
-     */
-    public function messengerBotLogin():void
-    {
-        $sessionPath   =  TelegramProviderConf::getModDir().'/'.self::BOT_SESSION_PATH;
-        $this->workDir = dirname($sessionPath);
-        if(defined('TG_DRY_RUN')){
-            $this->tgAuthTesting('messengerGetBotToken');
-            return;
-        }
-        Util::mwMkdir($this->workDir, true);
-        if(!file_exists($this->workDir)){
-            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, 'Failed to create a directory: bot work dir');
-            return;
-        }
-        $botToken    = $this->getInputData('messengerGetBotToken');
-        if(empty($botToken)){
-            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, 'Bot Token Input Timeout Exceeded');
-            return;
-        }
-        $settings       = self::messengerInitSettings();
-        // Очистка прошлых сессий.
-        shell_exec(Util::which('rm')." -rf $sessionPath*");
-
-        $MadelineProto  = new API($sessionPath, $settings);
-        Shutdown::addCallback(static function () use ($MadelineProto) {
-            $MadelineProto->__destruct();
-        });
-        $MadelineProto->async(false);
-        $authorization = $MadelineProto->botLogin($botToken);
-        if($authorization === null){
-            $pid = Processes::getPidOfProcess(basename($sessionPath));
-            if(!empty($pid)){
-                $authorization = ['_' => self::AUTH_OBJECT_NAME];
-                $killPath = Util::which('kill');
-                shell_exec("$killPath $pid");
-            }
-        }
-        if($authorization['_'] === self::AUTH_OBJECT_NAME){
-            $this->updateStatus(TelegramProviderConf::STATUS_DONE, '');
-            // Сохраним ID бота.
-            $botId = explode(':',$botToken)[0]??'';
-            if(!empty($botId)){
-                /** @var ModuleTelegramProvider $setting */
-                $settings = ModuleTelegramProvider::find();
-                foreach ($settings as $setting){
-                    $setting->botId = $botId;
-                    $setting->save();
-                }
-            }
-        }else{
-            $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $authorization);
-        }
-        $MadelineProto->__destruct();
     }
 
     /**
@@ -225,31 +122,6 @@ class TelegramAuth extends WorkerBase
         $this->getInputData($action);
         sleep(4);
         $this->updateStatus(TelegramProviderConf::STATUS_DONE, '');
-    }
-
-    /**
-     * Возвращает объект настроек для API подключения месенджера telegram.
-     * @return Settings
-     */
-    public static function messengerInitSettings():Settings
-    {
-        $settings = new Settings();
-        /** @var ModuleTelegramProvider $settings */
-        $setting = ModuleTelegramProvider::findFirst();
-        if($setting){
-            $appInfo = new Settings\AppInfo();
-            $appInfo->setApiId($setting->api_id);
-            $appInfo->setApiHash($setting->api_hash);
-            $settings->setAppInfo($appInfo);
-
-            $logFile = System::getLogDir()."/".basename(TelegramProviderConf::getModDir()).'/madeline-messenger.log';
-            $logger = new Settings\Logger();
-            $logger->setType(MadelineProtoLogger::FILE_LOGGER);
-            $logger->setLevel(MadelineProtoLogger::LEVEL_ERROR);
-            $logger->setExtra($logFile);
-            $settings->setLogger($logger);
-        }
-        return $settings;
     }
 
     /**
@@ -281,8 +153,6 @@ class TelegramAuth extends WorkerBase
             Util::sysLogMsg(self::class, $e->getMessage());
         }
         $this->updateStatus(TelegramProviderConf::STATUS_WAIT_RESPONSE, '');
-
-
         return $enteredText;
     }
 
@@ -334,6 +204,85 @@ class TelegramAuth extends WorkerBase
         }
     }
 
+    public function makeSettingsKeyboardFile($numPhone):string
+    {
+        $resultFile = "";
+        $this->login = $numPhone;
+        $this->initWorkDir($numPhone);
+        $this->workDir =  $this->workKeyboardDir;
+        if(!file_exists($this->workDir)){
+            return $resultFile;
+        }
+        $data = [];
+        $phone    = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $numPhone);
+        /** @var ModuleTelegramProvider $setting */
+        $setting = ModuleTelegramProvider::findFirst("phone_number='$phone'");
+        if($setting){
+            $providers = Sip::find("host='127.0.0.1'");
+            $providers->setHydrateMode(
+                Resultset::HYDRATE_OBJECTS
+            );
+            $idProviders = [];
+            /** @var Sip $provider */
+            foreach ($providers as $provider){
+                $idProviders[$provider->port] = $provider->uniqid;
+            }
+            $idRoutes = [];
+            $routes   = OutgoingRoutingTable::find();
+            $routes->setHydrateMode(
+                Resultset::HYDRATE_OBJECTS
+            );
+            /** @var OutgoingRoutingTable $route */
+            foreach ($routes as $route){
+                $idRoutes[$route->providerid] = $route->numberbeginswith;
+            }
+
+            $callbackQueue = $setting->callbackQueue;
+            /** @var CallQueues $queue */
+            $queues = CallQueues::find("id='$callbackQueue'");
+            $queues->setHydrateMode(
+                Resultset::HYDRATE_OBJECTS
+            );
+            foreach ($queues as $queue){
+                $data["QueueId"]  = $queue->uniqid;
+                $data["QueueNum"] = $queue->extension;
+            }
+            $data["PrefixExten"] = $idRoutes[$idProviders[30000 + $setting->id]??'']??'';
+            $data["PrefixVar"] = $idRoutes[$idProviders[30000 + $setting->id]??'']??'';
+            $data["DtmfText"]   = $setting->keyboardText;
+            $data["ApiId"]   = (int)$setting->api_id;
+            $data["ApiHash"] = $setting->api_hash;
+            $data["TgPhone"] = $phone;
+            $data["LogDir"]  = System::getLogDir()."/".basename(TelegramProviderConf::getModDir());
+            $data["LogFile"] = $data["LogDir"]."/tg-chats.log";
+            $data["AutoAnswerText"] = $setting->autoAnswerText;
+            $data["Token"]   = $setting->botId;
+            [$data["BotId"]] = explode(':', $setting->botId);
+            $data["BotId"]   = (int)$data["BotId"];
+            $data["LogLevel"] = 1;
+            $data["TdDir"] = $this->workKeyboardDir;
+            $data["AmiHost"] = '127.0.0.1';
+            $data["AmiPort"] = PbxSettings::getValueByKey('AMIPort');
+            $data["AmiLogin"] = 'phpagi';
+            $data["AmiPassword"] = 'phpagi';
+
+            $config = $this->getDI()->get('config');
+            $data["RedisAddres"]        = $config->redis->host.":".$config->redis->port;
+            $data["RedisDbIndex"]       = 3;
+            $data["CallbackButtonText"] = $this->translate('request a call back');
+            $data["CallbackTitle"]      = $this->translate('Ordering a callback');
+            $data["callbackText"]       = $setting->businessCardText;
+            $data["DtmfTitle"]          = $this->translate('Internal number entry form');
+            $data["RedisKeyPrefix"]     =  "tg_provider_";
+            $resultFile = "$this->workKeyboardDir/settings.conf";
+            file_put_contents($resultFile, json_encode($data, JSON_PRETTY_PRINT |JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+            $data["LogFile"] = $data["LogDir"]."/tg-bot.log";
+            file_put_contents("$this->workBotDir/settings.conf", json_encode($data, JSON_PRETTY_PRINT |JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        }
+
+        return $resultFile;
+    }
 
     /**
      * Запуск процесса авторизации.
@@ -347,36 +296,115 @@ class TelegramAuth extends WorkerBase
         $this->login = $params;
         $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
         $title      = 'gen_db_'.$numPhone;
-        $id = Processes::getPidOfProcess($title);
-        if(!empty($id)){
+        $pid = Processes::getPidOfProcess($title);
+        if(!empty($pid)){
             exit(2);
         }
         cli_set_process_title($title);
 
-        $confFile = $this->makeSettingsFile($numPhone);
+        [$confFile, $id] = $this->makeSettingsFile($numPhone);
         if(!file_exists($confFile)){
             exit(3);
         }
-        // Чистим старые настройки.
-        if(defined('TG_DRY_RUN')){
-            $this->tgAuthTesting('Enter authentication code:');
+
+        $pid = Processes::getPidOfProcess("tg2sip -$id-");
+        if(!empty($pid)){
+            // Процесс авторизации не требуется. Шлюз уже запущен.
             return;
         }
+
+        if(defined('TG_DRY_RUN')){
+            $cmd = "$this->moduleDir/bin/test-auth-app.sh";
+        }else{
+            shell_exec('killall gen_db > /dev/null 2> /dev/null');
+            $cmd = "$this->moduleDir/bin/gen_db";
+        }
+
         $descriptors = [
             self::STDIN_NUM  => ["pipe", "r"],
             self::STDOUT_NUM => ["pipe", "w"],
             self::STDERR_NUM => ["pipe", "w"]
         ];
-        shell_exec('killall gen_db');
-        $this->proc  = proc_open("$this->moduleDir/bin/gen_db", $descriptors, $this->pipes, $this->workDir);
+
+        $this->proc  = proc_open($cmd, $descriptors, $this->pipes, $this->workDir);
         $this->setupStreams();
         $startTime = time();
+        $macDelta= $this->absTimeout;
         do {
             $deltaTime  = time() - $startTime;
             $output     = $this->readOutput();
-            $this->checkOutput($output);
+            if($this->checkOutput($output)){
+                break;
+            }
+            $err = $this->readOutput(true);
+            if($this->checkOutput($err)){
+                break;
+            }
             $res        = $this->invokeAction($output);
+            if($macDelta === $this->absTimeout && (proc_get_status($this->proc)['running']??false) !== true){
+                $macDelta = time() - $startTime + 5;
+            }
         } while ($deltaTime <= $this->absTimeout && $res === true);
+    }
+
+    public function startKeyboard($params):void
+    {
+        if(empty($params)){
+            exit(1);
+        }
+
+        $this->login = $params;
+        $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
+        $title      = 'auth_keyboard_'.$numPhone;
+        $pid = Processes::getPidOfProcess($title);
+        if(!empty($pid)){
+            exit(2);
+        }
+        cli_set_process_title($title);
+        $confKeyboardFile = $this->makeSettingsKeyboardFile($numPhone);
+        if(!file_exists($confKeyboardFile)){
+            exit(4);
+        }
+
+        $pid = Processes::getPidOfProcess($confKeyboardFile);
+        if(empty($pid)){
+            if(defined('TG_DRY_RUN')){
+                $cmd = "$this->moduleDir/bin/test-auth-app.sh";
+            }else{
+                $cmd = "$this->moduleDir/bin/td-keyboard -c=$confKeyboardFile -u -auth";
+            }
+            // Запуск авторизации только если нет запущенного процесса.
+            $descriptors = [
+                self::STDIN_NUM  => ["pipe", "r"],
+                self::STDOUT_NUM => ["pipe", "w"],
+                self::STDERR_NUM => ["pipe", "w"]
+            ];
+            $this->proc  = proc_open($cmd, $descriptors, $this->pipes);
+            $this->setupStreams();
+            $startTime = time();
+            $maxDelta= $this->absTimeout;
+            do {
+                $deltaTime  = time() - $startTime;
+                $output     = $this->readOutput();
+                if($this->checkOutput($output)){
+                    break;
+                }
+                $err = $this->readOutput(true);
+                if($this->checkOutput($err)){
+                    break;
+                }
+                $res        = $this->invokeAction($output);
+                if($maxDelta === $this->absTimeout && (proc_get_status($this->proc)['running']??false) !== true){
+                    $maxDelta = time() - $startTime + 5;
+                }
+            } while ($deltaTime <= $maxDelta && $res === true);
+        }
+
+        $this->workDir = $this->workBotDir;
+        $timeout = Util::which('timeout');
+        $this->updateStatus(TelegramProviderConf::STATUS_START_AUTH, '');
+        $output = trim(shell_exec("$timeout 2 $this->moduleDir/bin/td-keyboard -auth -c=$confKeyboardFile $this->workBotDir/settings.conf"));
+        $this->checkOutput($output);
     }
 
     /**
@@ -391,9 +419,32 @@ class TelegramAuth extends WorkerBase
         if(!$settings){
             return;
         }
-        $this->moduleDir  = TelegramProviderConf::getModDir();
-        $this->workDir    = $this->moduleDir.'/db/'.$numPhone;
+        $this->moduleDir        = TelegramProviderConf::getModDir();
+        $this->workDir          = "$this->moduleDir/db/$numPhone";
+        $this->workKeyboardDir  = "$this->moduleDir/db/keyboard/$numPhone";
+        Util::mwMkdir($this->workKeyboardDir."/database");
+
+        $this->workBotDir = "$this->moduleDir/db/keyboard/bot";
+        Util::mwMkdir($this->workBotDir);
         Util::mwMkdir($this->workDir, true);
+    }
+
+    /**
+     * Подключаем переводы.
+     * @param $key
+     * @return mixed
+     */
+    private function translate($key)
+    {
+        if(empty($this->translates)){
+            $language = PbxSettings::getValueByKey('WebAdminLanguage');
+            try {
+                $this->translates = include TelegramProviderConf::getModDir() . "/Messages/{$language}.php";
+            }catch (\Throwable $e){
+                Util::sysLogMsg(__CLASS__, $e->getMessage());
+            }
+        }
+        return $this->translates[$key]??$key;
     }
 
     /**
@@ -401,15 +452,15 @@ class TelegramAuth extends WorkerBase
      * @param $numPhone
      * @return string
      */
-    private function makeSettingsFile($numPhone):string
+    private function makeSettingsFile($numPhone):array
     {
         $filename = '';
-        $debugLvl = 6;
-        /** @var ModuleTelegramProvider $settings */
+        $debugLvl = 1;
         $this->initWorkDir($numPhone);
         if(!file_exists($this->workDir)){
             return $filename;
         }
+        /** @var ModuleTelegramProvider $settings */
         $settings   = ModuleTelegramProvider::findFirst("phone_number='$this->login'");
         $this->id   = $settings->id;
         $filename   = $this->workDir.'/settings.ini';
@@ -441,10 +492,9 @@ class TelegramAuth extends WorkerBase
             PHP_EOL.
             '[other]'.PHP_EOL;
 
-        shell_exec("rm -rf $this->workDir/*;");
         file_put_contents($filename, $config);
 
-        return $filename;
+        return [$filename, $this->id];
     }
 
     /**
@@ -452,19 +502,19 @@ class TelegramAuth extends WorkerBase
      * @param $output
      * @return void
      */
-    private function checkOutput($output):void
+    private function checkOutput($output):bool
     {
+        $done = false;
         if(array_key_exists($output, $this->expectEnd)){
             if($this->expectEnd[$output] === true){
-                $code   = 0;
                 $status = TelegramProviderConf::STATUS_DONE;
+                $done = true;
             }else{
-                $code   = 5;
                 $status = TelegramProviderConf::STATUS_ERROR;
             }
             $this->updateStatus($status, $output);
-            exit($code);
         }
+        return $done;
     }
 
     /**

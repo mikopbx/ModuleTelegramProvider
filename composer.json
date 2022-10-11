@@ -1,9 +1,6 @@
 {
     "name": "mikopbx/module-telegram-provider",
     "description": "ModuleTelegramProvider",
-    "require": {
-        "danog/madelineproto": "^7"
-    },
     "autoload": {
         "psr-4": {
             "Modules\\ModuleTelegramProvider\\": "/"

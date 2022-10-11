@@ -29,8 +29,6 @@ class TelegramProviderConf extends ConfigClass
     public const LINE_STATUS_FAIL   = 'FAIL';
     public const LINE_STATUS_WAIT   = 'WAIT_START';
 
-    public const DTMF_PROCESS_TITLE = 'madeline-keyboard';
-
     /**
      * Receive information about mikopbx main database changes
      *
@@ -67,12 +65,52 @@ class TelegramProviderConf extends ConfigClass
             $res = $this->getStatus($request['data']['id']??'');
         }elseif($action === 'STATUSES'){
             $res = $this->getStatuses();
+        }elseif($action === 'LOGOUT'){
+            $res = $this->logout($request['data']['id']??'', $request['data']['phone']??'');
         }elseif($action === 'START-AUTH'){
             $res = $this->startAuth($request['data']['id']??'', $request['data']['type']??'');
         }elseif($action === 'ENTER-COMMAND'){
             $res = $this->enterCommand($request['data']['id']??'', $request['data']['command']??'', $request['data']['key']??'');
         }
         return $res;
+    }
+
+    private function logout(string $id, string $phone):PBXApiResult
+    {
+        $res = new PBXApiResult();
+        self::killByTittle("tg2sip -$id-", true);
+        self::killByTittle("td-keyboard=$id-", true);
+        $numPhone   = preg_replace(self::RGX_DIGIT_ONLY, '', $phone);
+        if(!empty($numPhone)){
+            $rmPath = Util::which('rm');
+            shell_exec("$rmPath -rf '$this->moduleDir/db/$numPhone' '$this->moduleDir/db/keyboard/$numPhone'");
+        }
+        if(!file_exists("$this->moduleDir/db/$numPhone")
+           && !file_exists("$this->moduleDir/db/keyboard/$numPhone")){
+            $res->success = true;
+        }
+        return $res;
+    }
+
+    public static function killByTittle($title, bool $force = false):void
+    {
+        $pid   = Processes::getPidOfProcess($title);
+        if(!empty($pid)){
+            $options = '';
+            if($force){
+                $options = '-9';
+            }
+            // Останавливаем конкретный процесс.
+            shell_exec("kill $options $pid > /dev/null 2> /dev/null");
+            // Ожидаем завершения процессов.
+            $ch = 0;
+            do{
+                $ch++;
+                sleep(1);
+                $pid   = Processes::getPidOfProcess($title);
+            }while(!empty($pid) && $ch <= 15);
+        }
+
     }
 
     /**
@@ -86,23 +124,26 @@ class TelegramProviderConf extends ConfigClass
     public function enterCommand($id, $command, $key):PBXApiResult
     {
         $res = new PBXApiResult();
+        $isFail = false;
         if(empty($id)){
-            return $res;
+            $isFail = true;
         }
         $settings = ModuleTelegramProvider::findFirst($id);
         if(!$settings){
-            return $res;
+            $isFail = true;
         }
         $phone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
-        if($key === 'bot'){
-            $workDir = $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH);
-        }elseif($key === 'user'){
-            $workDir = $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE));
-        }else{
-            $workDir = $this->moduleDir.'/db/'.$phone;
+        $workDir = $this->moduleDir.'/db/'.$phone;
+        if($key === 'user'){
+            $workDir = $this->moduleDir.'/db/keyboard/'.$phone;
+        }elseif($key !== 'gw'){
+            $isFail = true;
+        }
+        if($isFail){
+            return $res;
         }
         $statusFile = "$workDir/".TelegramProviderConf::STATUS_FILE_NAME;
-        $query      =  json_decode(file_get_contents($statusFile), true);
+        $query      = json_decode(file_get_contents($statusFile), true, 512, JSON_THROW_ON_ERROR);
         if($query['status']??'' === self::STATUS_WAIT_INPUT){
             $query['data'] = $command;
             file_put_contents($statusFile, json_encode($query));
@@ -137,35 +178,11 @@ class TelegramProviderConf extends ConfigClass
         $phpPath = Util::which('php');
         $pid = Processes::getPidOfProcess("tg2sip -$id-");
 
-        $delay = 0;
         $statusData = json_encode(['status'=> self::STATUS_START_AUTH, 'output' => 'CONF']);
         if(empty($pid) && strpos($type, 'gw' ) !== false){
             // Авторизация шлюза sip2tg.
-            $delay = 30;
             file_put_contents($statusFile, $statusData);
             Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/sip2tg-auth.php '$settings->phone_number'");
-        }
-        $pid = Processes::getPidOfProcess('madeline-auth-bot');
-        if(empty($pid) && strpos($type, 'bot' ) !== false){
-            $this->stopMadeLine();
-            $sessionDir = $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH);
-            $statusFile = $sessionDir.'/'.self::STATUS_FILE_NAME;
-            shell_exec("rm -rf $sessionDir/*");
-            Util::mwMkdir(dirname($statusFile));
-            file_put_contents($statusFile, $statusData);
-            // Авторизация для клиента телеграм.
-            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/madeline-auth.php 'bot'");
-        }
-        $pid = Processes::getPidOfProcess("madeline-auth-$phone-user");
-        if(empty($pid) && strpos($type, 'user' ) !== false){
-            $this->stopMadeLine();
-            $sessionDir = $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE));
-            $statusFile = $sessionDir.'/'.self::STATUS_FILE_NAME;
-            shell_exec("rm -rf $sessionDir");
-            Util::mwMkdir(dirname($statusFile));
-            file_put_contents($statusFile, $statusData);
-            // Авторизация для бота телеграм.
-            Processes::mwExecBg("$phpPath -f $this->moduleDir/bin/madeline-auth.php 'user' '$phone' $delay");
         }
         $res->success = true;
         return $res;
@@ -191,14 +208,14 @@ class TelegramProviderConf extends ConfigClass
         }
         $phone      = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
         $statusPath = [
-            'gw' => $this->moduleDir.'/db/'.$phone.'/'.self::STATUS_FILE_NAME,
-            'user' => $this->moduleDir.'/'.dirname(str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE)).'/'.self::STATUS_FILE_NAME,
-            'bot' => $this->moduleDir.'/'.dirname(TelegramAuth::BOT_SESSION_PATH).'/'.self::STATUS_FILE_NAME
+            'gw'    => $this->moduleDir.'/db/'.$phone.'/'.self::STATUS_FILE_NAME,
+            'user'  => $this->moduleDir.'/'.str_replace('$phone', $phone, TelegramAuth::PHONE_SESSION_TEMPLATE).'/'.self::STATUS_FILE_NAME,
+            'bot'   => $this->moduleDir.'/'.str_replace('$phone', 'bot', TelegramAuth::PHONE_SESSION_TEMPLATE).'/'.self::STATUS_FILE_NAME
         ];
         $res->success = true;
         foreach ($statusPath as $key => $statusFile){
             if(file_exists($statusFile)){
-                $res->data[$key] = json_decode(file_get_contents($statusFile), true);
+                $res->data[$key] = json_decode(file_get_contents($statusFile), true, 512, JSON_THROW_ON_ERROR);
             }else{
                 $res->data[$key] = [];
             }
@@ -218,17 +235,16 @@ class TelegramProviderConf extends ConfigClass
             Resultset::HYDRATE_OBJECTS
         );
 
-        $title = self::getProcessTitle();
-        $statusBot   = (strpos($title, "-bot") === false)?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK;
-
+        $pidBot = Processes::getPidOfProcess("td-keyboard=bot");
         foreach ($data as $settings) {
-            $phone  = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             $pid    = Processes::getPidOfProcess("tg2sip -$settings->id-");
+            $pidUser= Processes::getPidOfProcess("td-keyboard=$settings->id-");
+
             $statusAuth = $this->getStatus($settings->id);
             $statuses   = [
                 'gw'     => (empty($pid))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
-                'user'   => (strpos($title, "-$phone") === false)?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
-                'bot'    => (empty($phone))?self::LINE_STATUS_FAIL:$statusBot,
+                'user'   => (empty($pidUser))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
+                'bot'    => (empty($pidBot))?self::LINE_STATUS_WAIT:self::LINE_STATUS_OK,
             ];
             foreach ($statusAuth->data as $key => $stateData){
                 if($stateData['status'] !== self::STATUS_DONE){
@@ -239,20 +255,6 @@ class TelegramProviderConf extends ConfigClass
         }
         $res->success = true;
         return $res;
-    }
-
-    /**
-     * Возвращает описание запущенного процесса.
-     * @return string
-     */
-    public static function getProcessTitle():string
-    {
-        $path_ps   = Util::which('ps');
-        $path_grep = Util::which('grep');
-        $path_awk  = Util::which('awk');
-        $pid        = getmypid();
-        $out = shell_exec("$path_ps -A -o 'pid,args' | $path_grep ".self::DTMF_PROCESS_TITLE." | $path_grep -v grep | $path_grep -v '^$pid ' | $path_awk ' {print $3} '");
-        return trim($out);
     }
 
     /**
@@ -272,10 +274,48 @@ class TelegramProviderConf extends ConfigClass
             if(!empty($pid)){
                 continue;
             }
+
             $output = shell_exec("cd '$workDir'; /bin/busybox timeout 1 $this->moduleDir/bin/gen_db  /dev/null 2>&1");
             if(strpos($output, TelegramAuth::TEXT_AUTH_OK) !== false){
                 $this->mwNohup("$this->moduleDir/bin/tg2sip '-$settings->id-'", $workDir);
             }
+        }
+    }
+
+    /**
+     * Старт keyboard tg agent
+     * @return void
+     */
+    public function startTdKeyboard():void
+    {
+        /** @var ModuleTelegramProvider $settings */
+        $data = ModuleTelegramProvider::find();
+        $data->setHydrateMode(
+            Resultset::HYDRATE_OBJECTS
+        );
+
+        // Запуск бота отдельным процессом.
+        $idBot = "td-keyboard=bot-";
+        $pid = Processes::getPidOfProcess($idBot);
+        $botConf = "$this->moduleDir/db/keyboard/bot/settings.conf";
+
+        foreach ($data as $settings){
+            $auth = new TelegramAuth();
+            $auth->makeSettingsKeyboardFile($settings->phone_number);
+
+            $numPhone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
+            // Запуск телеграмм клиент.
+            $idTask = "td-keyboard=$settings->id-";
+            $pid = Processes::getPidOfProcess($idTask);
+            if(!empty($pid)){
+                continue;
+            }
+            $program = "$this->moduleDir/bin/td-keyboard -u -c=$this->moduleDir/db/keyboard/$numPhone/settings.conf $idTask";
+            Processes::mwExecBg($program);
+        }
+        if(empty($pid) && file_exists($botConf)){
+            $program = "$this->moduleDir/bin/td-keyboard -c=$botConf $idBot";
+            Processes::mwExecBg($program);
         }
     }
 
@@ -289,7 +329,6 @@ class TelegramProviderConf extends ConfigClass
         $workerPath = $this->moduleDir.'/bin/';
         $phpPath    = Util::which('php');
         Processes::mwExecBg("$phpPath -f $workerPath/sip2tg-launcher.php restart '$id'");
-        Processes::mwExecBg("$phpPath -f $workerPath/madeline-dtmf-keyboard.php '$id'");
     }
 
     /**
@@ -305,8 +344,12 @@ class TelegramProviderConf extends ConfigClass
         $rmPath    = Util::which('rm');
         $timePath  = Util::which('timeout');
 
-        $result_code = trim(shell_exec("cd {$workdir}; $timePath -s SIGSYS 1 {$command}; echo \$?"));
+        $result_code = trim(shell_exec("cd {$workdir}; $timePath -s SIGSYS 3 {$command}; echo \$?"));
+        if(strpos($result_code, "TG client connected") !== false){
+            $result_code = '0';
+        }
         $result_code = is_numeric($result_code)?1*$result_code:-1;
+
         if($result_code !==0 && $result_code !== 159){
             // 159 - Bad system call, так sip2tg реагирует на сигнал SIGSYS.
             // 0 - возвращается не регулярно при отправке SIGTERM, потому не используем его.
@@ -338,18 +381,14 @@ class TelegramProviderConf extends ConfigClass
         }
     }
 
-    public function stopMadeLine():void
-    {
-        $pid   = self::getProcessTitle();
-        if(!empty($pid)){
-            Processes::killByName($pid);
-        }
-        $pidB = Processes::getPidOfProcess(basename(TelegramAuth::BOT_SESSION_PATH));
-        $pidM = Processes::getPidOfProcess(basename(TelegramAuth::PHONE_SESSION_TEMPLATE));
-        if(!empty($pidB) || !empty($pidM)){
-            // завершение фоновых процессов madeline
-            $killPath = Util::which('kill');
-            shell_exec("$killPath $pidM $pidB");
+    /**
+     * Остановка работы всех прокси.
+     * @return void
+     */
+    public function stopTdKeyboard():void{
+        $ids = Processes::getPidOfProcess('td-keyboard');
+        if(!empty($ids)){
+            shell_exec("kill $ids");
         }
     }
 
@@ -368,7 +407,6 @@ class TelegramProviderConf extends ConfigClass
         $nohupPath    = Util::which('nohup');
 
         $tasks[]      = "*/1 * * * * $nohupPath $phpPath -f '$workerPath/sip2tg-launcher.php' > /dev/null 2> /dev/null &".PHP_EOL;
-        $tasks[]      = "*/1 * * * * $nohupPath $phpPath -f '$workerPath/madeline-dtmf-keyboard.php' > /dev/null 2> /dev/null &".PHP_EOL;
     }
 
     /**
@@ -379,7 +417,7 @@ class TelegramProviderConf extends ConfigClass
     public function onAfterModuleDisable(): void
     {
         $this->stopSipTg();
-        $this->stopMadeLine();
+        $this->stopTdKeyboard();
     }
 
     /**
@@ -390,7 +428,9 @@ class TelegramProviderConf extends ConfigClass
      */
     public function onAfterModuleEnable(): void
     {
-        $this->startSipTg();
+        $tg = new TelegramProviderConf();
+        $tg->startTdKeyboard();
+        $tg->startSipTg();
     }
 
     /**
@@ -422,5 +462,4 @@ class TelegramProviderConf extends ConfigClass
         $realpath = Util::which('realpath');
         return trim(shell_exec("$realpath ".__DIR__."/.."));
     }
-
 }
