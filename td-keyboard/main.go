@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ivahaev/amigo"
 	"github.com/patrickmn/go-cache"
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 )
@@ -17,6 +18,7 @@ var (
 	settingsFile string
 	settings     Settings
 	cacheManager cache.Cache
+	amiClient    *amigo.Amigo
 )
 
 func main() {
@@ -58,6 +60,7 @@ func main() {
 	/**
 	Основной код программы.
 	**/
+	initAmigo()
 	var wg sync.WaitGroup
 	if *onlyUser == true {
 		wg.Add(1)

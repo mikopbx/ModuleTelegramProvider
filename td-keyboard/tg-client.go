@@ -234,14 +234,17 @@ func tdUserListner(onlyAuth bool, testDc bool) {
 					// Проверка на добавочный номер.
 					id := fmt.Sprintf("%d", chatId)
 					channel := getChannelFromCache(id)
-					log.Printf("play dtmf: %s UserID:%s Channel: %s", dtmfCodes, id, channel)
 					if channel == "" {
+						log.Printf("The PBX channel associated with the call was not found. UserID:%s", id)
 						// Автоответчик, когда нет активного канала на АТС.
 						sendMessage(tdlibClient, chatId, settings.AutoAnswerText)
 						continue
 					} else {
+						log.Printf("Play dtmf: %s UserID:%s Channel: %s", dtmfCodes, id, channel)
 						// Набрать добавочный номер, если есть активный разговор.
-						playDtmf(channel, dtmfCodes)
+						for i := 0; i < len(dtmfCodes); i++ {
+							playDtmf(channel, string(dtmfCodes[i]))
+						}
 					}
 
 				} else {
