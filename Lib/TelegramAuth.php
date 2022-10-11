@@ -207,6 +207,7 @@ class TelegramAuth extends WorkerBase
     public function makeSettingsKeyboardFile($numPhone):string
     {
         $resultFile = "";
+        $this->login = $numPhone;
         $this->initWorkDir($numPhone);
         $this->workDir =  $this->workKeyboardDir;
         if(!file_exists($this->workDir)){

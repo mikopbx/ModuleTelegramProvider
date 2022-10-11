@@ -156,6 +156,8 @@ func tdUserListner(onlyAuth bool, testDc bool) {
 	}
 	log.Printf("username: %s, phone: %s", me.Username, me.PhoneNumber)
 	log.Printf("Create tg listener... ")
+
+	sendMessage(tdlibClient, settings.BotId, "/start")
 	listener := tdlibClient.GetListener()
 	defer listener.Close()
 	for update := range listener.Updates {
