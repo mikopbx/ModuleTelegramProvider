@@ -7,7 +7,7 @@ import (
 )
 
 func initAmigo() {
-	amiClient := amigo.New(&amigo.Settings{
+	amiClient = amigo.New(&amigo.Settings{
 		Username: settings.AmiLogin,
 		Password: settings.AmiPassword,
 		Host:     settings.AmiHost,
@@ -24,7 +24,7 @@ func initAmigo() {
 
 func playDtmf(channel string, digit string) {
 	if !amiClient.Connected() {
-		log.Println("Error play dtmf: '"+digit+"'", "AMI rlient not connected...")
+		log.Println("Error play dtmf: '"+digit+"'", "AMI сlient not connected...")
 		return
 	}
 	action := map[string]string{
