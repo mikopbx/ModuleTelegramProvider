@@ -299,13 +299,13 @@ class TelegramAuth extends WorkerBase
         $title      = 'gen_db_'.$numPhone;
         $pid = Processes::getPidOfProcess($title);
         if(!empty($pid)){
-            exit(2);
+            return;
         }
         cli_set_process_title($title);
 
         [$confFile, $id] = $this->makeSettingsFile($numPhone);
         if(!file_exists($confFile)){
-            exit(3);
+            return;
         }
 
         $pid = Processes::getPidOfProcess("tg2sip -$id-");
@@ -350,7 +350,7 @@ class TelegramAuth extends WorkerBase
 
     public function startKeyboard($params):void
     {
-        file_put_contents('/tmp/auth.log', json_encode(['app' => 'keyboard'].PHP_EOL), FILE_APPEND);
+        file_put_contents('/tmp/auth.log', json_encode(['app' => 'keyboard']).PHP_EOL, FILE_APPEND);
         if(empty($params)){
             exit(1);
         }
@@ -359,12 +359,12 @@ class TelegramAuth extends WorkerBase
         $title      = 'auth_keyboard_'.$numPhone;
         $pid = Processes::getPidOfProcess($title);
         if(!empty($pid)){
-            exit(2);
+            return;
         }
         cli_set_process_title($title);
         $confKeyboardFile = $this->makeSettingsKeyboardFile($numPhone);
         if(!file_exists($confKeyboardFile)){
-            exit(4);
+            return;
         }
 
         $pid = Processes::getPidOfProcess($confKeyboardFile);
