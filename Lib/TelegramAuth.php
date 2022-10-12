@@ -293,18 +293,19 @@ class TelegramAuth extends WorkerBase
         if(empty($params)){
             exit(1);
         }
+        file_put_contents('/tmp/auth.log', json_encode(['app' => 'tg2sip']).PHP_EOL);
         $this->login = $params;
         $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
         $title      = 'gen_db_'.$numPhone;
         $pid = Processes::getPidOfProcess($title);
         if(!empty($pid)){
-            exit(2);
+            return;
         }
         cli_set_process_title($title);
 
         [$confFile, $id] = $this->makeSettingsFile($numPhone);
         if(!file_exists($confFile)){
-            exit(3);
+            return;
         }
 
         $pid = Processes::getPidOfProcess("tg2sip -$id-");
@@ -336,11 +337,11 @@ class TelegramAuth extends WorkerBase
             if($this->checkOutput($output)){
                 break;
             }
+            $res = $this->invokeAction($output);
             $err = $this->readOutput(true);
             if($this->checkOutput($err)){
                 break;
             }
-            $res        = $this->invokeAction($output);
             if($macDelta === $this->absTimeout && (proc_get_status($this->proc)['running']??false) !== true){
                 $macDelta = time() - $startTime + 5;
             }
@@ -349,21 +350,21 @@ class TelegramAuth extends WorkerBase
 
     public function startKeyboard($params):void
     {
+        file_put_contents('/tmp/auth.log', json_encode(['app' => 'keyboard']).PHP_EOL, FILE_APPEND);
         if(empty($params)){
             exit(1);
         }
-
         $this->login = $params;
         $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
         $title      = 'auth_keyboard_'.$numPhone;
         $pid = Processes::getPidOfProcess($title);
         if(!empty($pid)){
-            exit(2);
+            return;
         }
         cli_set_process_title($title);
         $confKeyboardFile = $this->makeSettingsKeyboardFile($numPhone);
         if(!file_exists($confKeyboardFile)){
-            exit(4);
+            return;
         }
 
         $pid = Processes::getPidOfProcess($confKeyboardFile);
@@ -541,10 +542,14 @@ class TelegramAuth extends WorkerBase
         $stream     = &$this->pipes[$streamId];
         do {
             $deltaTime  = time() - $startTime;
-            $needRead = 1;
-            $stdout     = stream_get_contents($stream, $needRead);
-            if($stdout) {
+            $stdout     = stream_get_contents($stream, -1);
+            if(!empty($stdout)){
+                $data = json_encode(['time' => time(), 'data' => $stdout, 'error' => $error]);
+                file_put_contents('/tmp/auth.log', $data.PHP_EOL, FILE_APPEND);
                 $out .= $stdout;
+            }
+            if( (proc_get_status($this->proc)['running']??false) === false){
+                break;
             }
         } while ($deltaTime <= $this->readTimeout);
         $metadata   = stream_get_meta_data($stream);

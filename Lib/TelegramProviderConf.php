@@ -296,24 +296,24 @@ class TelegramProviderConf extends ConfigClass
 
         // Запуск бота отдельным процессом.
         $idBot = "td-keyboard=bot-";
-        $pid = Processes::getPidOfProcess($idBot);
+        $pidBot = Processes::getPidOfProcess($idBot);
         $botConf = "$this->moduleDir/db/keyboard/bot/settings.conf";
 
         foreach ($data as $settings){
             $auth = new TelegramAuth();
-            $auth->makeSettingsKeyboardFile($settings->phone_number);
+            $confFile = $auth->makeSettingsKeyboardFile($settings->phone_number);
 
             $numPhone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
             // Запуск телеграмм клиент.
             $idTask = "td-keyboard=$settings->id-";
             $pid = Processes::getPidOfProcess($idTask);
-            if(!empty($pid)){
+            if(!empty($pid) || !file_exists($confFile)){
                 continue;
             }
             $program = "$this->moduleDir/bin/td-keyboard -u -c=$this->moduleDir/db/keyboard/$numPhone/settings.conf $idTask";
             Processes::mwExecBg($program);
         }
-        if(empty($pid) && file_exists($botConf)){
+        if(empty($pidBot) && file_exists($botConf)){
             $program = "$this->moduleDir/bin/td-keyboard -c=$botConf $idBot";
             Processes::mwExecBg($program);
         }
