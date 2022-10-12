@@ -130,6 +130,7 @@ const ModuleTelegramProvider = {
 			}
 
 			if(window[className].statusesTimer !== 0){
+				window[className].statusesTimer = null;
 				setTimeout(window[className].checkStatusToggle, 10000);
 			}
         });
@@ -609,7 +610,8 @@ const ModuleTelegramProvider = {
 			step3.removeClass('disabled');
 			window[className].$moduleStatus.show();
 			if(window[className].statusesTimer === null){
-				window[className].statusesTimer = setTimeout(window[className].checkStatuses, 10000);
+				window[className].statusesTimer=1;
+				window[className].checkStatuses();
 			}
 		} else {
 			window[className].$disabilityFields.addClass('disabled');
