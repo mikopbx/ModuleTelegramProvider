@@ -157,7 +157,15 @@ func tdUserListner(onlyAuth bool, testDc bool) {
 	log.Printf("username: %s, phone: %s", me.Username, me.PhoneNumber)
 	log.Printf("Create tg listener... ")
 
-	sendMessage(tdlibClient, settings.BotId, "/start")
+	resStart, err := tdlibClient.SendBotStartMessage(&client.SendBotStartMessageRequest{
+		BotUserId: settings.BotId,
+		ChatId:    settings.BotId,
+		Parameter: "",
+	})
+	if resStart == nil && err != nil {
+		log.Fatalf("Error send start msg to bot %d: %s", settings.BotId, err)
+	}
+
 	listener := tdlibClient.GetListener()
 	defer listener.Close()
 	for update := range listener.Updates {
