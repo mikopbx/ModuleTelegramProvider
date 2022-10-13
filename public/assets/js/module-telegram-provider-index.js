@@ -23,8 +23,8 @@ var ModuleTelegramProvider = {
   $statusToggle: $('#module-status-toggle'),
   $moduleStatus: $('#status'),
   authProcess: '',
-  waitingInput: false,
   statusesTimer: null,
+  eventSource: {},
 
   /**
    * Field validation rules
@@ -86,7 +86,64 @@ var ModuleTelegramProvider = {
       }
     });
     window[className].checkStatusToggle();
+    window[className].initEventSource('telegram-provider');
   },
+  initEventSource: function initEventSource(chan) {
+    var url = "".concat(window.location.origin, "/pbxcore/api/nchan/sub/").concat(chan, "?token=").concat($('#api_hash').val());
+    window[className].eventSource[chan] = new EventSource(url, {
+      withCredentials: true
+    });
+    window[className].eventSource[chan].onmessage = window[className].onPbxMessage; // window[className].eventSource[chan].onerror   = window[className].onPbxMessageError;
+  },
+  onPbxMessage: function onPbxMessage(event) {
+    var statusData;
+
+    try {
+      statusData = $.parseJSON(event.data);
+    } catch (e) {
+      return;
+    }
+
+    var elDimmer = $('#dimmer-wait-status');
+
+    if (statusData.status === 'Done') {//
+    } else if (statusData.status === 'START_AUTH') {
+      elDimmer.addClass('active');
+    } else if (statusData.status === 'END_AUTH') {
+      elDimmer.removeClass('active');
+    } else if (statusData.status === 'WaitInput' && statusData.data.trim() === '') {
+      var translateStatus = globalTranslate[statusData.output];
+
+      if (translateStatus === undefined) {
+        translateStatus = statusData.output;
+      }
+
+      $('#command-dialog form div.field label').text(translateStatus);
+      $('input[id=command]').val('');
+      var title = globalTranslate["module_telegram_provider_" + statusData.app] + " (".concat(statusData.phone, ")");
+      $('#command-dialog a.ui.ribbon.label').text(title);
+      $('#command-dialog').modal({
+        closable: false,
+        onDeny: function onDeny() {
+          $.get('/pbxcore/api/modules/' + className + '/cancel-auth?login=' + statusData.phone);
+        },
+        onApprove: function onApprove() {
+          var elCommand = $('#command');
+          var command = elCommand.val();
+          elCommand.val('');
+          $.get('/pbxcore/api/modules/' + className + '/enter-command?login=' + statusData.phone + '&command=' + command + '&key=' + statusData.app);
+        }
+      }).modal('show');
+    } else if (statusData.status === 'Error') {
+      $("#error-message").show();
+      $("#error-message .header").text(globalTranslate.module_telegram_providerError);
+      $("#error-message .body").text(statusData.output);
+    }
+  },
+
+  /*
+  Проверка статусов линий
+   */
   checkStatuses: function checkStatuses() {
     $.get('/pbxcore/api/modules/' + className + '/statuses', function (response) {
       var haveDisable = false;
@@ -163,9 +220,8 @@ var ModuleTelegramProvider = {
         $("#error-message .header").text(globalTranslate.module_telegram_providerError);
         $("#error-message .body").text('');
         return;
-      }
+      } // window[className].checkStatus(id);
 
-      window[className].checkStatus(id);
     });
   },
 

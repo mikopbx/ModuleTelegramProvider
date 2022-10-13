@@ -21,8 +21,8 @@ const ModuleTelegramProvider = {
 	$statusToggle: $('#module-status-toggle'),
 	$moduleStatus: $('#status'),
 	authProcess: '',
-	waitingInput: false,
 	statusesTimer: null,
+	eventSource: {},
 	/**
 	 * Field validation rules
 	 * https://semantic-ui.com/behaviors/form.html
@@ -86,8 +86,64 @@ const ModuleTelegramProvider = {
 			}
 		});
 		window[className].checkStatusToggle();
+		window[className].initEventSource('telegram-provider')
 	},
-    checkStatuses(){
+
+	initEventSource: function (chan) {
+		let url = `${window.location.origin}/pbxcore/api/nchan/sub/${chan}?token=${$('#api_hash').val()}`;
+		window[className].eventSource[chan] = new EventSource(url, {
+			withCredentials: true
+		});
+		window[className].eventSource[chan].onmessage = window[className].onPbxMessage;
+		// window[className].eventSource[chan].onerror   = window[className].onPbxMessageError;
+	},
+	onPbxMessage: function(event) {
+		let statusData;
+		try{
+			statusData = $.parseJSON(event.data);
+		}catch (e) {
+			return;
+		}
+		let elDimmer = $('#dimmer-wait-status');
+		if(statusData.status === 'Done'){
+			//
+		}else if(statusData.status === 'START_AUTH'){
+			elDimmer.addClass('active');
+		}else if(statusData.status === 'END_AUTH'){
+			elDimmer.removeClass('active');
+		}else if(statusData.status === 'WaitInput' && statusData.data.trim() === ''){
+			let translateStatus = globalTranslate[statusData.output];
+			if(translateStatus === undefined){
+				translateStatus = statusData.output;
+			}
+			$('#command-dialog form div.field label').text(translateStatus);
+			$('input[id=command]').val('');
+			let title = globalTranslate["module_telegram_provider_" + statusData.app] + ` (${statusData.phone})`;
+			$('#command-dialog a.ui.ribbon.label').text(title);
+			$('#command-dialog')
+				.modal({
+					closable  : false,
+					onDeny    : function(){
+						$.get( '/pbxcore/api/modules/'+className+'/cancel-auth?login='+statusData.phone);
+					},
+					onApprove : function() {
+						let elCommand = $('#command');
+						let command = elCommand.val();
+						elCommand.val('');
+						$.get( '/pbxcore/api/modules/'+className+'/enter-command?login='+statusData.phone+'&command='+command+'&key='+statusData.app);
+					},
+				})
+				.modal('show');
+		}else if(statusData.status === 'Error'){
+			$("#error-message").show();
+			$("#error-message .header").text(globalTranslate.module_telegram_providerError);
+			$("#error-message .body").text(statusData.output);
+		}
+	},
+	/*
+	Проверка статусов линий
+	 */
+	checkStatuses(){
         $.get( '/pbxcore/api/modules/'+className+'/statuses', function( response ) {
 			let haveDisable = false;
 			for (let id in response.data) {
@@ -156,7 +212,7 @@ const ModuleTelegramProvider = {
 				$("#error-message .body").text('');
 				return;
 			}
-			window[className].checkStatus(id);
+			// window[className].checkStatus(id);
 		});
 	},
 

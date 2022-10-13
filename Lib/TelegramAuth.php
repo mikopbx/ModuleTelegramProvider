@@ -19,6 +19,7 @@
 
 namespace Modules\ModuleTelegramProvider\Lib;
 
+use GuzzleHttp;
 use MikoPBX\Common\Models\CallQueues;
 use MikoPBX\Common\Models\OutgoingRoutingTable;
 use MikoPBX\Common\Models\PbxSettings;
@@ -73,7 +74,7 @@ class TelegramAuth extends WorkerBase
     private string $error = '';
     private string $login   = '';
     private array  $translates    = [];
-
+    private string $app = '';
 
     /**
      * Получение данных вывода приложение и ожидание ввода значения пользователем.
@@ -197,6 +198,10 @@ class TelegramAuth extends WorkerBase
             ];
         }
         $statusFile = "$this->workDir/".TelegramProviderConf::STATUS_FILE_NAME;
+        $query['app']   = $this->app;
+        $query['phone'] = $this->login;
+        $this->sendAlertToBrowser($query);
+
         try {
             file_put_contents($statusFile, json_encode($query, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
         }catch (JsonException $e){
@@ -285,6 +290,30 @@ class TelegramAuth extends WorkerBase
     }
 
     /**
+     * Отправка POST запроса к API.
+     * @param array $params
+     * @return bool
+     */
+    public function sendAlertToBrowser(array $params):bool{
+        $url = 'http://127.0.0.1/pbxcore/api/amo/pub/telegram-provider';
+        $client  = new GuzzleHttp\Client();
+        $options = [
+            'timeout'       => 5,
+            'http_errors'   => false,
+            'headers'       => [],
+            'json'          => $params,
+        ];
+        try {
+            $resultHttp = $client->request('POST', $url, $options);
+            $code       = $resultHttp->getStatusCode();
+        } catch (Throwable $e) {
+            Util::sysLogMsg('ModuleAmoCrm', "GuzzleException");
+            $code = 0;
+        }
+        return ($code === 200);
+    }
+
+    /**
      * Запуск процесса авторизации.
      * @param string $params
      */
@@ -293,13 +322,17 @@ class TelegramAuth extends WorkerBase
         if(empty($params)){
             exit(1);
         }
+        $this->app = 'gw';
         file_put_contents('/tmp/auth.log', json_encode(['app' => 'tg2sip']).PHP_EOL);
+
         $this->login = $params;
         $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
         $title      = 'gen_db_'.$numPhone;
         $pid = Processes::getPidOfProcess($title);
         if(!empty($pid)){
-            return;
+            $killPath = Util::which('kill');
+            shell_exec("$killPath -9 $pid");
+            sleep(1);
         }
         cli_set_process_title($title);
 
@@ -346,6 +379,7 @@ class TelegramAuth extends WorkerBase
                 $macDelta = time() - $startTime + 5;
             }
         } while ($deltaTime <= $this->absTimeout && $res === true);
+        proc_close($this->proc);
     }
 
     public function startKeyboard($params):void
@@ -354,6 +388,7 @@ class TelegramAuth extends WorkerBase
         if(empty($params)){
             exit(1);
         }
+        $this->app = 'user';
         $this->login = $params;
         $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
         $title      = 'auth_keyboard_'.$numPhone;
@@ -400,7 +435,7 @@ class TelegramAuth extends WorkerBase
                 }
             } while ($deltaTime <= $maxDelta && $res === true);
         }
-
+        proc_close($this->proc);
         $this->workDir = $this->workBotDir;
         $timeout = Util::which('timeout');
         $this->updateStatus(TelegramProviderConf::STATUS_START_AUTH, '');

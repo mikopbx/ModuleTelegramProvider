@@ -38,6 +38,32 @@ class TelegramProviderConf extends ConfigClass
     {
         if ($data['model'] === ModuleTelegramProvider::class){
             $this->startLauncher($data['recordId']);
+            $this->makeAuthFiles();
+        }
+    }
+
+    /**
+     * @return void
+     */
+    private function makeAuthFiles():void
+    {
+        /** @var ModuleTelegramProvider $settings */
+        $settings = ModuleTelegramProvider::findFirst();
+        if(!$settings){
+            return;
+        }
+        $baseDir = '/var/etc/auth';
+        if(!file_exists($baseDir)){
+            Util::mwMkdir($baseDir, true);
+        }
+        $authFile = $baseDir.'/'.basename($settings->api_hash);
+        if(!file_exists($authFile)){
+            $grepPath   = Util::which('grep');
+            $cutPath    = Util::which('cut');
+            $xargs      = Util::which('xargs');
+            $tokenHash  = md5(ModuleTelegramProvider::class);
+            Processes::mwExec("$grepPath -Rn '$tokenHash' /var/etc/auth | $cutPath -d ':' -f 1 | $xargs rm -rf ");
+            file_put_contents($authFile, $tokenHash);
         }
     }
 
@@ -70,7 +96,7 @@ class TelegramProviderConf extends ConfigClass
         }elseif($action === 'START-AUTH'){
             $res = $this->startAuth($request['data']['id']??'', $request['data']['type']??'');
         }elseif($action === 'ENTER-COMMAND'){
-            $res = $this->enterCommand($request['data']['id']??'', $request['data']['command']??'', $request['data']['key']??'');
+            $res = $this->enterCommand($request['data']['login']??'', $request['data']['command']??'', $request['data']['key']??'');
         }
         return $res;
     }
@@ -121,14 +147,14 @@ class TelegramProviderConf extends ConfigClass
      * @param $key
      * @return PBXApiResult
      */
-    public function enterCommand($id, $command, $key):PBXApiResult
+    public function enterCommand($login, $command, $key):PBXApiResult
     {
         $res = new PBXApiResult();
         $isFail = false;
-        if(empty($id)){
+        if(empty($login)){
             $isFail = true;
         }
-        $settings = ModuleTelegramProvider::findFirst($id);
+        $settings = ModuleTelegramProvider::findFirst("phone_number='$login'");
         if(!$settings){
             $isFail = true;
         }
@@ -274,8 +300,7 @@ class TelegramProviderConf extends ConfigClass
             if(!empty($pid)){
                 continue;
             }
-
-            $output = shell_exec("cd '$workDir'; /bin/busybox timeout 1 $this->moduleDir/bin/gen_db  /dev/null 2>&1");
+            $output = shell_exec("cd '$workDir'; /bin/busybox timeout 2 $this->moduleDir/bin/gen_db  /dev/null 2>&1");
             if(strpos($output, TelegramAuth::TEXT_AUTH_OK) !== false){
                 $this->mwNohup("$this->moduleDir/bin/tg2sip '-$settings->id-'", $workDir);
             }
@@ -353,15 +378,7 @@ class TelegramProviderConf extends ConfigClass
         if($result_code !==0 && $result_code !== 159){
             // 159 - Bad system call, так sip2tg реагирует на сигнал SIGSYS.
             // 0 - возвращается не регулярно при отправке SIGTERM, потому не используем его.
-            $query = [
-                'status' => self::STATUS_ERROR,
-                'output' => 'Error start sip2tg...',
-            ];
-            try {
-                file_put_contents("$workdir/".self::STATUS_FILE_NAME, json_encode($query, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
-            }catch (\JsonException $e){
-                Util::sysLogMsg(__CLASS__, $e->getMessage());
-            }
+            Util::sysLogMsg(self::class, 'Error start sip2tg...');
             return;
         }
         $filename = '/tmp/' . time() . '_nohup.sh';
@@ -418,6 +435,14 @@ class TelegramProviderConf extends ConfigClass
     {
         $this->stopSipTg();
         $this->stopTdKeyboard();
+    }
+
+    /**
+     * This module's method calls after the asterisk service started
+     */
+    public function onAfterPbxStarted(): void
+    {
+        $this->makeAuthFiles();
     }
 
     /**
