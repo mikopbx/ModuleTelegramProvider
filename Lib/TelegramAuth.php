@@ -101,10 +101,9 @@ class TelegramAuth extends WorkerBase
         if(!empty($enteredText)){
             $this->writeCommand($enteredText.PHP_EOL);
         }
-        $output = $this->readOutput(true);
-        $done   = $this->checkOutput($output);
-        if(!$done){
-            $this->error = str_replace('Error: error ','',$output);
+        $errors = $this->readOutput(true);
+        if(!empty($errors)){
+            $this->error = str_replace('Error: error ','',$errors);
             if(!empty($this->error)){
                 $this->updateStatus(TelegramProviderConf::STATUS_ERROR, $this->error);
                 $res = false;
@@ -371,10 +370,6 @@ class TelegramAuth extends WorkerBase
                 break;
             }
             $res = $this->invokeAction($output);
-            $err = $this->readOutput(true);
-            if($this->checkOutput($err)){
-                break;
-            }
             if($macDelta === $this->absTimeout && (proc_get_status($this->proc)['running']??false) !== true){
                 $macDelta = time() - $startTime + 5;
             }
@@ -423,10 +418,6 @@ class TelegramAuth extends WorkerBase
                 $deltaTime  = time() - $startTime;
                 $output     = $this->readOutput();
                 if($this->checkOutput($output)){
-                    break;
-                }
-                $err = $this->readOutput(true);
-                if($this->checkOutput($err)){
                     break;
                 }
                 $res        = $this->invokeAction($output);
