@@ -139,7 +139,7 @@ private:
                 overloaded(
                         [this](td_api::authorizationStateReady &) {
                             sequence_done = true;
-                            std::cerr << "Authorization OK" << std::endl;
+                            std::cout << "Authorization OK" << std::endl;
                         },
                         [this](td_api::authorizationStateLoggingOut &) {
                             sequence_done = true;
