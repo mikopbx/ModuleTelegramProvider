@@ -294,7 +294,7 @@ class TelegramAuth extends WorkerBase
      * @return bool
      */
     public function sendAlertToBrowser(array $params):bool{
-        $url = 'http://127.0.0.1/pbxcore/api/amo/pub/telegram-provider';
+        $url = 'http://127.0.0.1/pbxcore/api/nchan/pub/telegram-provider';
         $client  = new GuzzleHttp\Client();
         $options = [
             'timeout'       => 5,
