@@ -165,6 +165,7 @@ func tdUserListner(onlyAuth bool, testDc bool) {
 	if resStart == nil && err != nil {
 		log.Fatalf("Error send start msg to bot %d: %s", settings.BotId, err)
 	}
+	sendMessage(tdlibClient, settings.BotId, "Starting a new session...")
 
 	listener := tdlibClient.GetListener()
 	defer listener.Close()
