@@ -258,7 +258,7 @@ class TelegramAuth extends WorkerBase
             $data["ApiHash"] = $setting->api_hash;
             $data["TgPhone"] = $phone;
             $data["LogDir"]  = System::getLogDir()."/".basename(TelegramProviderConf::getModDir());
-            $data["LogFile"] = $data["LogDir"]."/tg-chats.log";
+            $data["LogFile"] = $data["LogDir"]."/tg-chats-$numPhone.log";
             $data["AutoAnswerText"] = $setting->autoAnswerText;
             $data["Token"]   = $setting->botId;
             [$data["BotId"]] = explode(':', $setting->botId);
