@@ -146,6 +146,7 @@ class ModuleTelegramProviderController extends BaseController
             $rowData->api_id            = $record->api_id;
             $rowData->api_hash          = $record->api_hash;
             $rowData->businessCardText  = $record->businessCardText;
+            $rowData->botId             = $record->botId;
             $rowData->keyboardText      = $record->keyboardText;
             $rowData->autoAnswerText    = $record->autoAnswerText;
             $rowData->callbackQueue     = $record->callbackQueue;
