@@ -8,6 +8,7 @@
 
 namespace Modules\ModuleTelegramProvider\Lib;
 
+use MikoPBX\Common\Models\PbxSettings;
 use MikoPBX\Core\System\Processes;
 use MikoPBX\Core\System\Util;
 use MikoPBX\Modules\Config\ConfigClass;
@@ -39,6 +40,11 @@ class TelegramProviderConf extends ConfigClass
         if ($data['model'] === ModuleTelegramProvider::class){
             $this->startLauncher($data['recordId']);
             $this->makeAuthFiles();
+        }
+
+        if($data['model'] === PbxSettings::class && $data['recordId'] === 'SIPPort'){
+            // Перезапуск сервисов при исзменении порта SIP АТС.
+            $this->startLauncher($data['recordId']);
         }
     }
 
@@ -293,8 +299,13 @@ class TelegramProviderConf extends ConfigClass
         $data->setHydrateMode(
             Resultset::HYDRATE_OBJECTS
         );
+        $tgClient = new TelegramAuth();
         foreach ($data as $settings){
             $numPhone   = preg_replace(self::RGX_DIGIT_ONLY, '', $settings->phone_number);
+            [$confFile] = $tgClient->makeSettingsFile($numPhone, true);
+            if(!file_exists($confFile)){
+                continue;
+            }
             $workDir    = $this->moduleDir.'/db/'.$numPhone;
             $pid = Processes::getPidOfProcess("tg2sip -$settings->id-");
             if(!empty($pid)){
