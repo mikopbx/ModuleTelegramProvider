@@ -477,24 +477,30 @@ class TelegramAuth extends WorkerBase
     /**
      * Создание конфиг файла.
      * @param $numPhone
-     * @return string
+     * @param bool $makeOnly
+     * @return array
      */
-    private function makeSettingsFile($numPhone):array
+    public function makeSettingsFile($numPhone, bool $makeOnly = false):array
     {
         $filename = '';
         $debugLvl = 1;
+        if(empty($this->login)){
+            $this->login = $numPhone;
+        }
         $this->initWorkDir($numPhone);
         if(!file_exists($this->workDir)){
-            return $filename;
+            return [$filename, null];
         }
         /** @var ModuleTelegramProvider $settings */
         $settings   = ModuleTelegramProvider::findFirst("phone_number='$this->login'");
         $this->id   = $settings->id;
         $filename   = $this->workDir.'/settings.ini';
-        if(file_exists($filename)){
+        if(!$makeOnly && file_exists($filename)){
             $output = shell_exec("cd '$this->workDir'; /bin/busybox timeout 0.5 $this->moduleDir/bin/gen_db 2>&1");
             $this->checkOutput(trim($output));
         }
+
+        $sipPort= PbxSettings::getValueByKey('SIPPort');
         $port   = 30000 + $settings->id;
         $config =   '[logging]'.PHP_EOL.
             "core=$debugLvl".PHP_EOL.
@@ -508,8 +514,8 @@ class TelegramAuth extends WorkerBase
             "[sip]".PHP_EOL.
             "public_address=127.0.0.1".PHP_EOL.
             "port=$port".PHP_EOL.
-            "id_uri=sip:$numPhone@127.0.0.1".PHP_EOL.
-            "callback_uri=sip:$numPhone@127.0.0.1".PHP_EOL.
+            "id_uri=sip:$numPhone@127.0.0.1:$sipPort".PHP_EOL.
+            "callback_uri=sip:$numPhone@127.0.0.1:$sipPort".PHP_EOL.
             "raw_pcm=false".PHP_EOL.
             "thread_count=1".PHP_EOL.
             PHP_EOL.
@@ -518,9 +524,7 @@ class TelegramAuth extends WorkerBase
             "api_hash=$settings->api_hash".PHP_EOL.
             PHP_EOL.
             '[other]'.PHP_EOL;
-
         file_put_contents($filename, $config);
-
         return [$filename, $this->id];
     }
 

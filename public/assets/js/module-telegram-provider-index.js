@@ -17,8 +17,8 @@ var ModuleTelegramProvider = {
   $formObj: $('#' + idForm),
   $checkBoxes: $('#' + idForm + ' .ui.checkbox'),
   $dropDowns: $('#' + idForm + ' .ui.dropdown'),
-  saveTableAJAXUrl: globalRootUrl + idUrl + "/saveTableData",
-  deleteRecordAJAXUrl: globalRootUrl + idUrl + "/delete",
+  saveTableAJAXUrl: window.location.origin + globalRootUrl + idUrl + "/saveTableData",
+  deleteRecordAJAXUrl: window.location.origin + globalRootUrl + idUrl + "/delete",
   $disabilityFields: $('#' + idForm + '  .disability'),
   $statusToggle: $('#module-status-toggle'),
   $moduleStatus: $('#status'),
@@ -74,7 +74,7 @@ var ModuleTelegramProvider = {
         }
       }
     });
-    $.get(idUrl + '/getTablesDescription', function (result) {
+    $.get("".concat(window.location.origin).concat(globalRootUrl).concat(idUrl, "/getTablesDescription"), function (result) {
       for (var key in result['data']) {
         var tableName = key + '-table';
 
@@ -277,7 +277,7 @@ var ModuleTelegramProvider = {
 
     $('#' + tableName).DataTable({
       ajax: {
-        url: idUrl + options.ajaxUrl + '?table=' + tableName.replace('-table', ''),
+        url: "".concat(window.location.origin).concat(globalRootUrl).concat(idUrl).concat(options.ajaxUrl, "?table=") + tableName.replace('-table', ''),
         dataSrc: 'data'
       },
       columns: columns,
