@@ -1,4 +1,22 @@
 <?php
+/*
+ * MikoPBX - free phone system for small business
+ * Copyright © 2017-2023 Alexey Portnov and Nikolay Beketov
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
+
 return [
     /**
  * Copyright (C) MIKO LLC - All Rights Reserved
@@ -57,7 +75,7 @@ return [
     'Enter your first name:' => 'Введите свое имя для регистрации в Telegram:',
     'Enter your last name:' => 'Введите свою фамилию для регистрации в Telegram:',
     'Enter phone number:' => 'Введите номер телефона для регистрации в Telegram:',
-    'Enter the employee's internal number' => 'Введите внутренний номер абонента',
+    'Enter the employee internal number' => 'Введите внутренний номер абонента',
     'Internal number entry form' => 'Форма ввода добавочного номера',
     'Ordering a callback' => 'Заказ обратного звонка',
     'MessageNoAnswer' => 'К сожалению мы до Вас не дозвонились. Заказать обратный звонок можно по кнопке ниже',

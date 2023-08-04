@@ -302,7 +302,7 @@ class BotEventHandler extends EventHandler
                 ],
             ]
         ];
-        $message = (empty($this->keyboardText))?$this->translate("Enter the employee's internal number"):$this->keyboardText;
+        $message = (empty($this->keyboardText))?$this->translate("Enter the employee internal number"):$this->keyboardText;
         return [
             'query_id' => $update['query_id'],
             'results' => [
