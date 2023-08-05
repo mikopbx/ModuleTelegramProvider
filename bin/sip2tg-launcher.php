@@ -23,29 +23,16 @@ use MikoPBX\Core\System\Processes;
 use MikoPBX\Modules\PbxExtensionUtils;
 use Modules\ModuleTelegramProvider\Lib\TelegramProviderConf;
 
-function killByTittle($title):void
-{
-    $pid   = Processes::getPidOfProcess($title);
-    if(!empty($pid)){
-        // Останавливаем конкретный процесс.
-        shell_exec("kill $pid > /dev/null 2> /dev/null");
-        // Ожидаем завершения процессов.
-        $ch = 0;
-        do{
-            $ch++;
-            sleep(1);
-            $pid   = Processes::getPidOfProcess($title);
-        }while(!empty($pid) && $ch <= 15);
-    }
-
-}
-
 $tg = new TelegramProviderConf();
 $moduleEnabled  = PbxExtensionUtils::isEnabled('ModuleTelegramProvider');
 if($moduleEnabled === true){
     $action = $argv[1]??'';
     if($action === 'restart'){
         $id = trim($argv[2]??'');
+        $pid   = Processes::getPidOfProcess('sip2tg-launcher.php restart 1');
+        if(!empty($pid)){
+            exit(0);
+        }
         TelegramProviderConf::killByTittle("tg2sip -$id-");
         TelegramProviderConf::killByTittle("td-keyboard=$id-");
         TelegramProviderConf::killByTittle("td-keyboard=bot-");
