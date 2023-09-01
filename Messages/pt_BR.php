@@ -1,5 +1,6 @@
 <?php
-/*
+return [
+    /*
  * MikoPBX - free phone system for small business
  * Copyright © 2017-2023 Alexey Portnov and Nikolay Beketov
  *
@@ -16,8 +17,6 @@
  * You should have received a copy of the GNU General Public License along with this program.
  * If not, see <https://www.gnu.org/licenses/>.
  */
-
-return [
     /**
  * Copyright (C) MIKO LLC - All Rights Reserved
  * Unauthorized copying of this file, via any medium is strictly prohibited
@@ -31,8 +30,8 @@ return [
     'SubHeaderModuleTelegramProvider' => 'Подключение Telegram канала для входящих и исходящих звонков',
     'module_telegram_AddNewRecord' => 'Добавить',
     'module_telegram_provider_phone_number' => 'Номер телефона',
-    'module_telegram_provider_api_id' => 'App api_id',
-    'module_telegram_provider_api_hash' => 'App api_hash:',
+    'module_telegram_provider_api_id' => 'api_id',
+    'module_telegram_provider_api_hash' => 'api_hash:',
     'module_telegram_providerUrlGetId' => 'Obter "App api_id" e "App api_hash"...',
     'module_telegram_providerError' => 'При попытке авторизации произошла ошибка',
     'module_telegram_providerReconnect' => 'Повторить попытку подключения...',
