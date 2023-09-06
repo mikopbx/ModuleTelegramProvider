@@ -17,7 +17,6 @@ return [
     'module_telegram_providerUrlGetId' => 'this link',
     'module_telegram_providerReconnect' => 'Get "App api_id" and "App api_hash"',
     'module_telegram_providerCopy' => 'Copy to clipboard',
-    'module_telegram_providerPasswordFieldLabel' => 'Password field example',
     'module_telegram_providerIntegerFieldLabel' => 'Integer field example',
     'module_telegram_providerCheckBoxFieldLabel' => 'CheckBox',
     'module_telegram_providerToggleFieldLabel' => 'Toggle',
