@@ -1,5 +1,6 @@
 <?php
-/*
+return [
+    /*
  * MikoPBX - free phone system for small business
  * Copyright © 2017-2023 Alexey Portnov and Nikolay Beketov
  *
@@ -16,8 +17,6 @@
  * You should have received a copy of the GNU General Public License along with this program.
  * If not, see <https://www.gnu.org/licenses/>.
  */
-
-return [
     /**
  * Copyright (C) MIKO LLC - All Rights Reserved
  * Unauthorized copying of this file, via any medium is strictly prohibited
@@ -87,4 +86,9 @@ return [
     'keyboardSubText' => 'Будет отправлен вместе с клавиатурой в Telegram клиента при входящем звонке.',
     'callbackQueueText' => 'Очередь для обработки звонков',
     'callbackQueueSubText' => '<br> Функция предназначена для случаев, когда клиент не ответил навызов.<br>Если вызов пропущен клиентом, то ему будет оправлена визитка. <br> Вместе с визиткой отправляется кнопка "Перезвонить".<br> При нажатии на кнопку вызов, будет направлен на очередь.<br> Как только сотрудник поднимет трубку, вызов будет направлен клиенту.<br>',
+    'module_telegram_provider_gw' => 'Telegram <-> SIP Gateway',
+    'module_telegram_provider_user' => 'Πελάτης Telegram',
+    'module_telegram_provider_bot_token' => 'Bot Token',
+    'autoAnswerText' => 'Τηλεφωνητής',
+    'autoAnswerTextSubText' => 'Θα σταλεί ένα μήνυμα κειμένου εάν ο πελάτης γράψει ένα εισερχόμενο μήνυμα',
 ];

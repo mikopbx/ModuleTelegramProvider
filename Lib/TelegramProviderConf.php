@@ -423,9 +423,9 @@ class TelegramProviderConf extends ConfigClass
     /**
      * Добавление задач в crond.
      *
-     * @param $tasks
+     * @param array $tasks
      */
-    public function createCronTasks(&$tasks): void
+    public function createCronTasks(array &$tasks): void
     {
         if ( ! is_array($tasks)) {
             return;
