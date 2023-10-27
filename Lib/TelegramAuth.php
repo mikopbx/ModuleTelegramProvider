@@ -314,18 +314,18 @@ class TelegramAuth extends WorkerBase
 
     /**
      * Запуск процесса авторизации.
-     * @param string $params
+     * @param string $argv
      */
-    public function start($params):void
+    public function start($argv):void
     {
-        if(empty($params)){
+        if(empty($argv)){
             exit(1);
         }
         $this->app = 'gw';
         file_put_contents('/tmp/auth.log', json_encode(['app' => 'tg2sip']).PHP_EOL);
 
-        $this->login = $params;
-        $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $params);
+        $this->login = $argv;
+        $numPhone   = preg_replace(TelegramProviderConf::RGX_DIGIT_ONLY, '', $argv);
         $title      = 'gen_db_'.$numPhone;
         $pid = Processes::getPidOfProcess($title);
         if(!empty($pid)){
