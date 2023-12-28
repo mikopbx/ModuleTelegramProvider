@@ -1,5 +1,6 @@
 #!/bin/sh 
 
+# docker build --tag build-env:2.1 - < ./Dockerfile
 echo "Creating docker builder env"
 builder="$(docker run -t -v "$(pwd)":/src -w /src -d build-env:2.1)"
 
