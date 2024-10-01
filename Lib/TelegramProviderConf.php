@@ -33,9 +33,9 @@ class TelegramProviderConf extends ConfigClass
     /**
      * Receive information about mikopbx main database changes
      *
-     * @param $data
+     * @param mixed $data
      */
-    public function modelsEventChangeData($data): void
+    public function modelsEventChangeData(mixed $data): void
     {
         if ($data['model'] === ModuleTelegramProvider::class){
             $this->startLauncher($data['recordId']);

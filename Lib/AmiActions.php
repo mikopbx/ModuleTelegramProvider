@@ -20,7 +20,6 @@
 namespace Modules\ModuleTelegramProvider\Lib;
 use MikoPBX\Common\Providers\ConfigProvider;
 use MikoPBX\Core\System\Util;
-use Phalcon\Di;
 use Phalcon\Storage\SerializerFactory;
 use Phalcon\Cache\Adapter\Redis;
 
@@ -53,7 +52,7 @@ class AmiActions
     public static function cacheAdapter():Redis
     {
         $serializerFactory = new SerializerFactory();
-        $di     = Di::getDefault();
+        $di = MikoPBXVersion::getDefaultDi();
         $options = [
             'defaultSerializer' => 'Json',
             'lifetime'          => 300,

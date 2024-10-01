@@ -8,13 +8,9 @@
 namespace Modules\ModuleTelegramProvider\App\Controllers;
 use MikoPBX\AdminCabinet\Controllers\BaseController;
 use MikoPBX\Common\Models\CallQueues;
-use MikoPBX\Common\Models\Extensions;
 use MikoPBX\Modules\PbxExtensionUtils;
 use Modules\ModuleTelegramProvider\App\Forms\ModuleTelegramProviderForm;
 use Modules\ModuleTelegramProvider\Models\ModuleTelegramProvider;
-use MikoPBX\Common\Models\Providers;
-use Modules\ModuleTelegramProvider\Models\PhoneBook;
-use Phalcon\Mvc\Model\Resultset;
 
 class ModuleTelegramProviderController extends BaseController
 {

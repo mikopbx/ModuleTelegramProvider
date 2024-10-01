@@ -20,7 +20,7 @@
 
 require_once 'Globals.php';
 use MikoPBX\Core\Asterisk\AGI;
-use MikoPBX\Core\System\Util;
+use MikoPBX\Core\System\SystemMessages;
 use Modules\ModuleTelegramProvider\Lib\AmiActions;
 
 $agi    = new AGI();
@@ -37,6 +37,6 @@ if(!empty($ID)){
     try {
         $cacheAdapter->set($ID, $data, 600);
     }catch (Throwable $e){
-        Util::sysLogMsg('TG-PROVIDER', $e->getMessage());
+        SystemMessages::sysLogMsg('TG-PROVIDER', $e->getMessage());
     }
 }
