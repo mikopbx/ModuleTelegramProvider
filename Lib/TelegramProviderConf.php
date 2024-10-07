@@ -35,7 +35,7 @@ class TelegramProviderConf extends ConfigClass
      *
      * @param mixed $data
      */
-    public function modelsEventChangeData(mixed $data): void
+    public function modelsEventChangeData($data): void
     {
         if ($data['model'] === ModuleTelegramProvider::class){
             $this->startLauncher($data['recordId']);
