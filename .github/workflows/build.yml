@@ -38,7 +38,7 @@ jobs:
         # Build td-keyboard
         echo "Building td-keyboard..."
         (
-          cd $GITHUB_WORKSPACE/module/td-keyboard/build-env
+          cd $GITHUB_WORKSPACE/module/td-keyboard
         
           # Create builder container
           builder=$(docker run -t -v "$(pwd)":/src -w /src -d $DOCKER_IMAGE_TAG)
