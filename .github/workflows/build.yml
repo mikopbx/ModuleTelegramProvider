@@ -18,40 +18,7 @@ jobs:
         # Build the Docker environment
         echo "Building Docker environment..."
         docker build -t build-env:2.1 -f td-keyboard/build-env/Dockerfile .
-        
-#        # Build tg2sip
-#        echo "Building tg2sip..."
-#        (
-#          cd $GITHUB_WORKSPACE/module/tg2sip
-#
-#          # Create builder container
-#          builder=$(docker run -t -v "$(pwd)":/src -w /src -d build-env:2.1)
-#
-#          # Build process
-#          docker exec "$builder" cmake -DCMAKE_BUILD_TYPE=Release .
-#          docker exec "$builder" cmake --build .
-#
-#          # Cleanup container
-#          docker stop $builder
-#          docker rm $builder
-#
-#          # Move artifacts
-#          if [ -f gen_db ]; then
-#            mv gen_db $GITHUB_WORKSPACE/module/bin/gen_db
-#          else
-#            echo 'Error build gen_db'
-#            exit 1
-#          fi
-#          ls -la
-#          if [ -f tg ]; then
-#            mv tg $GITHUB_WORKSPACE/module/bin/tg2sip
-#          else
-#            echo 'Error build tg2sip'
-#            exit 1
-#          fi
-#        )
-#        rm -rf $GITHUB_WORKSPACE/module/tg2sip
-        
+                
         # Build td-keyboard
         echo "Building td-keyboard..."
         (
@@ -77,4 +44,37 @@ jobs:
           fi
         )
         rm -rf $GITHUB_WORKSPACE/module/td-keyboard
+        
+        # Build tg2sip
+        echo "Building tg2sip..."
+        (
+          cd $GITHUB_WORKSPACE/module/tg2sip
+
+          # Create builder container
+          builder=$(docker run -t -v "$(pwd)":/src -w /src -d build-env:2.1)
+
+          # Build process
+          docker exec "$builder" cmake -DCMAKE_BUILD_TYPE=Release .
+          docker exec "$builder" cmake --build .
+
+          # Cleanup container
+          docker stop $builder
+          docker rm $builder
+
+          # Move artifacts
+          if [ -f gen_db ]; then
+            mv gen_db $GITHUB_WORKSPACE/module/bin/gen_db
+          else
+            echo 'Error build gen_db'
+            exit 1
+          fi
+          ls -la
+          if [ -f tg ]; then
+            mv tg $GITHUB_WORKSPACE/module/bin/tg2sip
+          else
+            echo 'Error build tg2sip'
+            exit 1
+          fi
+        )
+        rm -rf $GITHUB_WORKSPACE/module/tg2sip
     secrets: inherit
