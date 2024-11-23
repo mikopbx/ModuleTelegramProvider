@@ -15,9 +15,25 @@ jobs:
       custom_build_steps: |
         cd $GITHUB_WORKSPACE/module
         
-        # Build the Docker environment
-        echo "Building Docker environment..."
-        docker build -t build-env:2.1 -f td-keyboard/build-env/Dockerfile .
+        # Set up Docker cache
+        DOCKER_IMAGE_TAG="tg2sip-build-env:2.1"
+        DOCKER_CACHE_KEY="docker-cache-$DOCKER_IMAGE_TAG"
+        
+        # Try to load cached image
+        echo "Loading Docker cache..."
+        docker load < /tmp/docker-cache.tar || true
+        
+        # Build the Docker environment if not in cache
+        if ! docker images | grep -q $DOCKER_IMAGE_TAG; then
+          echo "Cache miss. Building Docker environment..."
+          docker build -t $DOCKER_IMAGE_TAG -f $GITHUB_WORKSPACE/module/td-keyboard/build-env/Dockerfile .
+        
+          # Save to cache
+          echo "Saving Docker image to cache..."
+          docker save $DOCKER_IMAGE_TAG > /tmp/docker-cache.tar
+        else
+          echo "Using cached Docker image"
+        fi
                 
         # Build td-keyboard
         echo "Building td-keyboard..."
@@ -25,7 +41,7 @@ jobs:
           cd $GITHUB_WORKSPACE/module/td-keyboard/build-env
         
           # Create builder container
-          builder=$(docker run -t -v "$(pwd)/..":/src -w /src -d build-env:2.1)
+          builder=$(docker run -t -v "$(pwd)":/src -w /src -d $DOCKER_IMAGE_TAG)
         
           # Build process
           docker exec "$builder" go mod tidy
@@ -36,8 +52,8 @@ jobs:
           docker rm $builder
         
           # Move artifacts
-          if [ -f td-keyboard ]; then
-            mv td-keyboard $GITHUB_WORKSPACE/module/bin/td-keyboard
+          if [ -f $GITHUB_WORKSPACE/module/td-keyboard/td-keyboard ]; then
+            mv $GITHUB_WORKSPACE/module/td-keyboard/td-keyboard $GITHUB_WORKSPACE/module/bin/td-keyboard
           else 
             echo 'Error build td-keyboard'
             exit 1
@@ -51,7 +67,7 @@ jobs:
           cd $GITHUB_WORKSPACE/module/tg2sip
 
           # Create builder container
-          builder=$(docker run -t -v "$(pwd)":/src -w /src -d build-env:2.1)
+          builder=$(docker run -t -v "$(pwd)":/src -w /src -d $DOCKER_IMAGE_TAG)
 
           # Build process
           docker exec "$builder" cmake -DCMAKE_BUILD_TYPE=Release .
@@ -62,15 +78,15 @@ jobs:
           docker rm $builder
 
           # Move artifacts
-          if [ -f gen_db ]; then
-            mv gen_db $GITHUB_WORKSPACE/module/bin/gen_db
+          if [ -f $GITHUB_WORKSPACE/module/tg2sip/gen_db ]; then
+            mv $GITHUB_WORKSPACE/module/tg2sip/gen_db $GITHUB_WORKSPACE/module/bin/gen_db
           else
             echo 'Error build gen_db'
             exit 1
           fi
           ls -la
-          if [ -f tg ]; then
-            mv tg $GITHUB_WORKSPACE/module/bin/tg2sip
+          if [ -f $GITHUB_WORKSPACE/module/tg2sip/tg ]; then
+            mv $GITHUB_WORKSPACE/module/tg2sip/tg $GITHUB_WORKSPACE/module/bin/tg2sip
           else
             echo 'Error build tg2sip'
             exit 1
