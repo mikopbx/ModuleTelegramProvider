@@ -22,28 +22,94 @@ jobs:
         handle_docker_cache() {
           local image_name=$1
           local dockerfile_path=$2
-          local cache_file="$RUNNER_TEMP/docker-cache-${image_name// /_}.tar"
+          local platforms=$3  # linux/amd64,linux/arm64
+          local cache_prefix="$RUNNER_TEMP/docker-cache"
         
-          # Try to restore from cache
-          if [ -f "$cache_file" ]; then
-            echo "Loading cached image: $image_name"
-            docker load < "$cache_file"
-          fi
+          # Build for each platform
+          for platform in ${platforms//,/ }; do
+            local arch=${platform#*/}  # Extract arch from platform
+            local cache_file="${cache_prefix}-${image_name// /_}-${arch}.tar"
+            local tagged_image="${image_name}-${arch}"
         
-          # Build if not exists
-          if ! docker images $image_name | grep -q "${image_name}"; then
-            echo "Building image: $image_name from $dockerfile_path"
-            docker build -t $image_name -f "$dockerfile_path" .
-            # Save to cache
-            echo "Caching image: $image_name"
-            docker save $image_name > "$cache_file"
-          else
-            echo "Using cached image: $image_name"
-          fi
+            # Try to restore from cache if cache exists and was hit
+            if [ "$CACHE_HIT" = "true" ] && [ -f "$cache_file" ]; then
+              echo "Loading cached image for $platform: $tagged_image"
+              docker load < "$cache_file"
+            else
+              echo "Building image for $platform: $tagged_image"
+              docker buildx build \
+                --platform $platform \
+                --tag $tagged_image \
+                --load \
+                -f "$dockerfile_path" .
+        
+              # Save to cache
+              echo "Caching image for $platform: $tagged_image"
+              docker save $tagged_image > "$cache_file"
+            fi
+          done
         }
         
-        # Prepare build environments
-        handle_docker_cache "$DOCKER_IMAGE_TAG" "td-keyboard/build-env/Dockerfile"
+        # Prepare build environments for multiple architectures
+        PLATFORMS="linux/amd64"
+        handle_docker_cache "$DOCKER_IMAGE_TAG" "td-keyboard/build-env/Dockerfile" "$PLATFORMS"
         
+        # Build td-keyboard
+        echo "Building td-keyboard..."
+        (
+          cd $GITHUB_WORKSPACE/module/td-keyboard
+        
+          # Create builder container
+          builder=$(docker run -t -v "$(pwd)":/src -w /src -d $DOCKER_IMAGE_TAG)
+        
+          # Build process
+          docker exec "$builder" go mod tidy
+          docker exec "$builder" go build -o td-keyboard --ldflags '-extldflags "-static -L/usr/local/lib"'
+        
+          # Cleanup container
+          docker stop $builder
+          docker rm $builder
+        
+          # Move artifacts
+          if [ -f $GITHUB_WORKSPACE/module/td-keyboard/td-keyboard ]; then
+            mv $GITHUB_WORKSPACE/module/td-keyboard/td-keyboard $GITHUB_WORKSPACE/module/bin/td-keyboard
+          else 
+            echo 'Error build td-keyboard'
+            exit 1
+          fi
+        )
+        rm -rf $GITHUB_WORKSPACE/module/td-keyboard
+        
+        # Build tg2sip
+        echo "Building tg2sip..."
+        (
+          cd $GITHUB_WORKSPACE/module/tg2sip
 
+          # Create builder container
+          builder=$(docker run -t -v "$(pwd)":/src -w /src -d $DOCKER_IMAGE_TAG)
+
+          # Build process
+          docker exec "$builder" cmake -DCMAKE_BUILD_TYPE=Release .
+          docker exec "$builder" cmake --build .
+
+          # Cleanup container
+          docker stop $builder
+          docker rm $builder
+
+          # Move artifacts
+          if [ -f $GITHUB_WORKSPACE/module/tg2sip/gen_db ]; then
+            mv $GITHUB_WORKSPACE/module/tg2sip/gen_db $GITHUB_WORKSPACE/module/bin/gen_db
+          else
+            echo 'Error build gen_db'
+            exit 1
+          fi
+          ls -la
+          if [ -f $GITHUB_WORKSPACE/module/tg2sip/tg ]; then
+            mv $GITHUB_WORKSPACE/module/tg2sip/tg $GITHUB_WORKSPACE/module/bin/tg2sip
+          else
+            echo 'Error build tg2sip'
+            exit 1
+          fi
+        )
+        rm -rf $GITHUB_WORKSPACE/module/tg2sip
     secrets: inherit
