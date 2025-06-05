@@ -3,3 +3,4 @@
 /vendor/
 /composer.lock
 /td-keyboard/settings.conf
+.DS_Store
