@@ -158,9 +158,10 @@ void Client::init_pj_endpoint(Settings &settings, LogWriter *sip_log_writer) {
     // set SIP threads number
     ep_cfg.medConfig.threadCnt = settings.sip_thread_count();
 
-    // 10ms ptime required to keep L16 RTP packet below MTU
-    ep_cfg.medConfig.audioFramePtime = 10;
-    ep_cfg.medConfig.ptime = 10;
+    // Set ptime: 10ms for raw PCM to keep RTP under MTU, 20ms for Opus to match tgvoip
+    int mediaPtime = settings.raw_pcm() ? 10 : 20;
+    ep_cfg.medConfig.audioFramePtime = mediaPtime;
+    ep_cfg.medConfig.ptime = mediaPtime;
 
     // must be the same as used in media ports
     ep_cfg.medConfig.clockRate = 48000;
@@ -184,7 +185,7 @@ void Client::init_pj_endpoint(Settings &settings, LogWriter *sip_log_writer) {
     // pjSIP with switch board require matching of SIP audio
     // and TG audio port clock rate so we MUST force
     // using 48kHz codecs for all SIP calls
-    std::string codecId = settings.raw_pcm() ? "L16/48000/1" : "opus/48000/2";
+    std::string codecId = settings.raw_pcm() ? "L16/48000/1" : "opus/48000/1";
     CodecInfoVector codecVector = ep.codecEnum();
 
     for (auto const &value : codecVector) {

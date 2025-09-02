@@ -46,15 +46,28 @@ pj_status_t SoftwareAudioInput::PutFrameCallback(pjmedia_port *port, pjmedia_fra
         return PJ_SUCCESS;
     }
 
-    assert(frame->size == 960 * 2);
-
     auto input = (SoftwareAudioInput *) port->port_data.pdata;
 
     if (!input->isActive) {
         return PJ_SUCCESS;
     }
 
-    input->InvokeCallback((unsigned char *) frame->buf, frame->size);
+    // Accept both 10 ms (960 bytes) and 20 ms (1920 bytes) mono 48k16 frames.
+    // If 10 ms arrives, accumulate to 20 ms before passing into tgvoip.
+    if (frame->size == 960) {
+        size_t copy = PJ_MIN((size_t)960, sizeof(input->acc) - input->acc_len);
+        memcpy(input->acc + input->acc_len, frame->buf, copy);
+        input->acc_len += copy;
+        if (input->acc_len == sizeof(input->acc)) {
+            input->InvokeCallback((unsigned char *) input->acc, sizeof(input->acc));
+            input->acc_len = 0;
+        }
+    } else if (frame->size == 960 * 2) {
+        input->InvokeCallback((unsigned char *) frame->buf, frame->size);
+        input->acc_len = 0; // reset accumulator on full frame
+    } else {
+        // Unexpected size: drop silently to avoid asserts breaking call flow
+    }
 
     return PJ_SUCCESS;
 }

@@ -26,6 +26,10 @@ namespace tgvoip {
 
             pj_pool_t *pj_pool;
             pjmedia_port *media_port;
+
+            // Accumulator for combining two 10 ms frames into one 20 ms frame
+            unsigned char acc[1920]{}; // 48kHz * 20ms * 16-bit mono
+            size_t acc_len{0};
         };
     }
 }

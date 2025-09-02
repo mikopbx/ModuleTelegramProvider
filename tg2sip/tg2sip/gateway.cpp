@@ -30,7 +30,7 @@ namespace {
         // actually we want to provide real tgvoip version from
         // tgvoip::VoIPController::GetVersion()
         // but telegram servers accepts only this one
-        return vector<string>{"2.4.4"};
+        return vector<string>{"2.4.3"};
     }
 }
 
