@@ -203,7 +203,7 @@ const ModuleTelegramProvider = {
 			window[className].statusesTimer = 0;
 		}
 		$("#error-message").hide();
-		$.get( '/pbxcore/api/modules/'+className+'/start-auth?id='+id+'&type='+window[className].authProcess, function( response ) {
+		const onResponse = function( response ) {
 			if(response.result === false){
 				console.log(response);
 				$("#error-message").show();
@@ -211,7 +211,10 @@ const ModuleTelegramProvider = {
 				$("#error-message .body").text('');
 				return;
 			}
-		});
+		};
+		$.get( '/pbxcore/api/modules/'+className+'/start-auth?id='+id+'&type='+window[className].authProcess, onResponse)
+			// Core#1166: newer cores send a failed start-auth as HTTP 4xx with the same JSON body.
+			.fail((xhr) => onResponse(xhr.responseJSON || { result: false }));
 	},
 
 	/**
